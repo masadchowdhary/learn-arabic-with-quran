@@ -5,6 +5,7 @@ import UserProgress from '../models/UserProgress.js';
 import PracticeHistory from '../models/PracticeHistory.js';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
+import optionalAuth from '../middleware/optionalAuth.js';
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const XP_REWARDS = {
  * Generate a practice session (flashcard deck)
  * Body: { chapterNumber, sessionSize (default 10), mode: 'new' | 'review' | 'mixed' }
  */
-router.post('/session', auth, async (req, res, next) => {
+router.post('/session', optionalAuth, async (req, res, next) => {
   try {
     const { chapterNumber, sessionSize = 10, mode = 'mixed' } = req.body;
 
@@ -59,11 +60,14 @@ router.post('/session', auth, async (req, res, next) => {
       }
     }
 
-    // Get user's mastered words for this chapter
-    const masteredWords = await MasteredWord.find({
-      userId: req.userId,
-      'appearsIn.chapterNumber': chapterNumber
-    }).lean();
+    // Get user's mastered words for this chapter if logged in
+    let masteredWords = [];
+    if (req.userId) {
+      masteredWords = await MasteredWord.find({
+        userId: req.userId,
+        'appearsIn.chapterNumber': chapterNumber
+      }).lean();
+    }
 
     const masteredArabicSet = new Set(masteredWords.map(w => w.wordArabic));
 
@@ -161,7 +165,7 @@ router.post('/session', auth, async (req, res, next) => {
  * Submit practice session results
  * Body: { chapterNumber, results: [{ wordArabic, correct, verseKey }], duration }
  */
-router.post('/submit', auth, async (req, res, next) => {
+router.post('/submit', optionalAuth, async (req, res, next) => {
   try {
     const { chapterNumber, results, duration = 0 } = req.body;
 
@@ -173,11 +177,36 @@ router.post('/submit', auth, async (req, res, next) => {
     }
 
     let xpEarned = 0;
-    let wordsCorrect = 0;
+    let wordsCorrect = results.filter(r => r.correct).length;
     const verseKeysSet = new Set();
     const newBadges = [];
 
-    // Process each word result
+    // Check for perfect session
+    const accuracy = results.length > 0 ? (wordsCorrect / results.length) * 100 : 0;
+    if (accuracy === 100 && results.length >= 5) {
+      xpEarned += XP_REWARDS.PERFECT_SESSION;
+    }
+
+    if (!req.userId) {
+      // Guest user: Just return the summary without saving to DB
+      return res.json({
+        success: true,
+        message: 'প্রাকটিস সেশন সম্পন্ন হয়েছে! প্রগ্রেস সেভ করতে লগইন করুন। 🚀',
+        summary: {
+          wordsAttempted: results.length,
+          wordsCorrect,
+          accuracy: Math.round(accuracy),
+          xpEarned: 0,
+          totalXp: 0,
+          level: 1,
+          streak: 0,
+          newBadges: [],
+          isGuest: true
+        }
+      });
+    }
+
+    // Process each word result for logged in users
     for (const result of results) {
       const { wordArabic, correct, verseKey, translationBn, translationEn, transliteration } = result;
 
@@ -213,7 +242,8 @@ router.post('/submit', auth, async (req, res, next) => {
 
       if (correct) {
         masteredWord.correctCount += 1;
-        wordsCorrect++;
+        // Don't add to wordsCorrect here, we already did it for both guests and users above
+        // wait, we only want to calculate xpEarned for DB updates here
         xpEarned += masteredWord.masteryLevel >= 4
           ? XP_REWARDS.REVIEW_CORRECT
           : XP_REWARDS.CORRECT_ANSWER;
@@ -225,12 +255,6 @@ router.post('/submit', auth, async (req, res, next) => {
       masteredWord.updateMasteryLevel();
       masteredWord.scheduleNextReview();
       await masteredWord.save();
-    }
-
-    // Check for perfect session
-    const accuracy = results.length > 0 ? (wordsCorrect / results.length) * 100 : 0;
-    if (accuracy === 100 && results.length >= 5) {
-      xpEarned += XP_REWARDS.PERFECT_SESSION;
     }
 
     // Update user XP, level, and streak

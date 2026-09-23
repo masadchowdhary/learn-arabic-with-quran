@@ -24,6 +24,18 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ─── Database Connection Middleware ─────────────────
+// Connect to the DB on each request. The connectDB function caches the connection.
+// This is done after CORS so that OPTIONS preflight requests don't fail if the DB is down.
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ─── Routes ─────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/chapters', chapterRoutes);
@@ -52,17 +64,19 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // ─── Start Server / Export App ──────────────────────
-// Connect to the database (Vercel serverless function will reuse the connection)
-connectDB();
-
 // Only start the server if not running on Vercel (or in production)
 if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`\n╔═══════════════════════════════════════════════╗`);
-    console.log(`║   🕌 Learn Arabic with Quran API               ║`);
-    console.log(`║   Server running on port ${PORT}                  ║`);
-    console.log(`║   http://localhost:${PORT}                        ║`);
-    console.log(`╚═══════════════════════════════════════════════╝\n`);
+  app.listen(PORT, async () => {
+    try {
+      await connectDB();
+      console.log(`\n╔═══════════════════════════════════════════════╗`);
+      console.log(`║   🕌 Learn Arabic with Quran API               ║`);
+      console.log(`║   Server running on port ${PORT}                  ║`);
+      console.log(`║   http://localhost:${PORT}                        ║`);
+      console.log(`╚═══════════════════════════════════════════════╝\n`);
+    } catch (err) {
+      console.error('Failed to connect to database on startup:', err);
+    }
   });
 }
 

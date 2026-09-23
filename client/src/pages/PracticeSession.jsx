@@ -165,9 +165,15 @@ export default function PracticeSession() {
             {summary.accuracy >= 80 ? '🏆' : summary.accuracy >= 50 ? '👍' : '💪'}
           </div>
           <h2 style={{ fontFamily: 'var(--font-bengali)', marginBottom: 'var(--space-2)' }}>সেশন সম্পন্ন হয়েছে!</h2>
-          <p style={{ color: 'var(--color-primary-light)', fontSize: 'var(--font-size-xl)', fontWeight: 'bold', marginBottom: 'var(--space-6)' }}>
-            +{summary.xpEarned} XP
-          </p>
+          {summary.isGuest ? (
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-base)', marginBottom: 'var(--space-6)' }}>
+              লগইন না থাকায় আপনার প্রগ্রেস সেভ হয়নি।
+            </p>
+          ) : (
+            <p style={{ color: 'var(--color-primary-light)', fontSize: 'var(--font-size-xl)', fontWeight: 'bold', marginBottom: 'var(--space-6)' }}>
+              +{summary.xpEarned} XP
+            </p>
+          )}
 
           <div className="grid-stats" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 'var(--space-6)' }}>
             <div className="stat-card" style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
@@ -191,12 +197,22 @@ export default function PracticeSession() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+          {summary.isGuest && (
+            <div style={{ marginTop: 'var(--space-6)', padding: 'var(--space-4)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+              <p style={{ marginBottom: 'var(--space-3)' }}>আপনার প্রগ্রেস এবং XP সেভ করতে লগইন করুন!</p>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+                <Link to="/login" className="btn btn-primary btn-sm">লগইন</Link>
+                <Link to="/register" className="btn btn-outline btn-sm">রেজিস্টার</Link>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', marginTop: 'var(--space-6)' }}>
             <button onClick={startSession} className="btn btn-primary">
               আবার প্রাকটিস করুন
             </button>
-            <Link to="/dashboard" className="btn btn-outline">
-              ড্যাশবোর্ড
+            <Link to={summary.isGuest ? "/surahs" : "/dashboard"} className="btn btn-outline">
+              {summary.isGuest ? "সূরা তালিকা" : "ড্যাশবোর্ড"}
             </Link>
           </div>
         </div>

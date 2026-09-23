@@ -44,6 +44,15 @@ function AppContent() {
         <Route path="/register" element={<Register />} />
         <Route path="/surahs" element={<SurahList />} />
         
+        <Route 
+          path="/surah/:chapterNum" 
+          element={<AyahView />} 
+        />
+        <Route 
+          path="/practice" 
+          element={<PracticeSession />} 
+        />
+        
         {/* Protected Routes */}
         <Route 
           path="/dashboard" 
@@ -53,22 +62,7 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/surah/:chapterNum" 
-          element={
-            <ProtectedRoute>
-              <AyahView />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/practice" 
-          element={
-            <ProtectedRoute>
-              <PracticeSession />
-            </ProtectedRoute>
-          } 
-        />
+
         <Route 
           path="/profile" 
           element={

@@ -71,7 +71,13 @@ npm run seed
 
 ### 4. Run the Application
 
-You can run both the frontend and backend concurrently.
+You can run both the frontend and backend concurrently from the root directory using:
+
+```bash
+npm run dev
+```
+
+Alternatively, you can run them separately:
 
 **Run Backend:**
 ```bash

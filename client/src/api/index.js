@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+let API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// If VITE_API_URL is set (e.g. in Vercel) but missing the /api suffix, append it
+if (API_BASE && !API_BASE.endsWith('/api')) {
+  API_BASE = API_BASE.replace(/\/$/, '') + '/api';
+}
 
 const api = axios.create({
   baseURL: API_BASE,

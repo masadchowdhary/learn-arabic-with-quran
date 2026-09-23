@@ -26,7 +26,7 @@ export default function Register() {
 
     try {
       await register(formData);
-      navigate('/dashboard');
+      navigate('/practice');
     } catch (err) {
       setError(err.message);
     } finally {

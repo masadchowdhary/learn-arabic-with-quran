@@ -8,43 +8,43 @@
 
 /* ─── CSS Custom Properties (Design Tokens) ────────── */
 :root {
-  /* Primary Colors — Emerald Green (Islamic heritage) */
-  --color-primary: #0A6847;
-  --color-primary-light: #10A37F;
-  --color-primary-dark: #064E34;
-  --color-primary-glow: rgba(10, 104, 71, 0.3);
+  /* Primary Colors — Natural Green */
+  --color-primary: #2e7d32;
+  --color-primary-light: #4caf50;
+  --color-primary-dark: #1b5e20;
+  --color-primary-glow: rgba(76, 175, 80, 0.2);
 
-  /* Accent — Gold (Quran elegance) */
-  --color-accent: #F2A900;
-  --color-accent-light: #FFD166;
-  --color-accent-dark: #C98800;
-  --color-accent-glow: rgba(242, 169, 0, 0.2);
+  /* Accent — Soft Gold */
+  --color-accent: #d4af37;
+  --color-accent-light: #f3e5ab;
+  --color-accent-dark: #aa8c2c;
+  --color-accent-glow: rgba(212, 175, 55, 0.2);
 
-  /* Background — Deep dark */
-  --color-bg-primary: #0B0F14;
-  --color-bg-secondary: #111820;
-  --color-bg-tertiary: #1A222D;
-  --color-bg-card: #151D28;
-  --color-bg-card-hover: #1C2636;
-  --color-bg-elevated: #1E2838;
+  /* Background — Clean white/off-white */
+  --color-bg-primary: #f8fafc;
+  --color-bg-secondary: #f1f5f9;
+  --color-bg-tertiary: #e2e8f0;
+  --color-bg-card: #ffffff;
+  --color-bg-card-hover: #f8fafc;
+  --color-bg-elevated: #ffffff;
 
   /* Text */
-  --color-text-primary: #E8ECF1;
-  --color-text-secondary: #9BA4B2;
-  --color-text-muted: #6B7585;
-  --color-text-accent: var(--color-accent);
-  --color-text-arabic: #F5F0E8;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
+  --color-text-accent: var(--color-primary-dark);
+  --color-text-arabic: #1e293b;
 
   /* Borders */
-  --color-border: #2A3442;
-  --color-border-light: #354050;
+  --color-border: #e2e8f0;
+  --color-border-light: #cbd5e1;
   --color-border-focus: var(--color-primary-light);
 
   /* Status */
-  --color-success: #34D399;
-  --color-error: #F87171;
-  --color-warning: #FBBF24;
-  --color-info: #60A5FA;
+  --color-success: #10b981;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
 
   /* Mastery Levels */
   --mastery-0: #6B7585;  /* New */
@@ -91,11 +91,11 @@
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px var(--color-primary-glow);
-  --shadow-gold-glow: 0 0 20px var(--color-accent-glow);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-glow: 0 0 15px var(--color-primary-glow);
+  --shadow-gold-glow: 0 0 15px var(--color-accent-glow);
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -141,7 +141,7 @@ body::before {
   background-image:
     radial-gradient(circle at 20% 20%, var(--color-primary-glow) 0%, transparent 50%),
     radial-gradient(circle at 80% 80%, var(--color-accent-glow) 0%, transparent 50%);
-  opacity: 0.3;
+  opacity: 0.6;
   z-index: -1;
 }
 
@@ -233,10 +233,10 @@ h4 { font-size: var(--font-size-xl); }
 }
 
 .card-glass {
-  background: rgba(21, 29, 40, 0.7);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* ─── Button Component ──────────────────────────────── */
@@ -304,7 +304,7 @@ h4 { font-size: var(--font-size-xl); }
 
 .btn-ghost:hover {
   color: var(--color-text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .btn-lg {
@@ -408,9 +408,9 @@ h4 { font-size: var(--font-size-xl); }
 }
 
 .badge-accent {
-  background: rgba(242, 169, 0, 0.15);
-  color: var(--color-accent);
-  border: 1px solid rgba(242, 169, 0, 0.3);
+  background: rgba(212, 175, 55, 0.15);
+  color: var(--color-accent-dark);
+  border: 1px solid rgba(212, 175, 55, 0.3);
 }
 
 .badge-mastery {
@@ -519,6 +519,16 @@ h4 { font-size: var(--font-size-xl); }
   border: 2px solid var(--color-border);
   border-radius: var(--radius-xl);
   cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .flashcard-container {
+    height: 220px;
+  }
+  .flashcard-face {
+    padding: var(--space-4);
+    gap: var(--space-2);
+  }
 }
 
 .flashcard-front {
@@ -668,7 +678,7 @@ h4 { font-size: var(--font-size-xl); }
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(11, 15, 20, 0.85);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--color-border);
@@ -739,6 +749,17 @@ h4 { font-size: var(--font-size-xl); }
   text-align: left;
 }
 
+@media (max-width: 768px) {
+  .choice-btn {
+    padding: var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+  
+  .grid-choices {
+    gap: var(--space-2);
+  }
+}
+
 .choice-btn:hover {
   border-color: var(--color-primary-light);
   background: var(--color-bg-card-hover);
@@ -777,6 +798,153 @@ h4 { font-size: var(--font-size-xl); }
 }
 
 /* ─── Loading Spinner ───────────────────────────────── */
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(10, 104, 71, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--color-primary);
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes xpFloat {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  20% { transform: translate(-50%, -60%) scale(1.2); opacity: 1; }
+  100% { transform: translate(-50%, -150%) scale(1); opacity: 0; }
+}
+
+@keyframes fireGlow {
+  0% { text-shadow: 0 0 10px rgba(247, 37, 133, 0.5); }
+  50% { text-shadow: 0 0 20px rgba(247, 37, 133, 0.8), 0 0 30px rgba(255, 107, 53, 0.6); }
+  100% { text-shadow: 0 0 10px rgba(247, 37, 133, 0.5); }
+}
+
+/* ─── Layout Grids ──────────────────────────────────── */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.grid-choices {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+/* ─── Practice Page ─────────────────────────────────── */
+.practice-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 70px);
+  overflow: hidden;
+  padding: var(--space-4) 0;
+}
+
+.practice-page-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* Crucial for flex children to not overflow */
+}
+
+.practice-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.practice-flashcard-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.practice-choices-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+@media (min-width: 768px) {
+  .practice-page {
+    height: calc(100vh - 80px);
+  }
+  .practice-area {
+    flex-direction: row;
+    gap: var(--space-8);
+  }
+}
+
+@media (max-width: 767px) {
+  .practice-page {
+    padding: var(--space-2) 0;
+    height: calc(100dvh - 65px);
+  }
+  .practice-page-content {
+    justify-content: space-between;
+  }
+  .practice-area {
+    gap: var(--space-2);
+  }
+  .flashcard-container {
+    height: 100%;
+    max-height: 35vh; /* Scale flashcard on mobile */
+  }
+  .flashcard-face {
+    padding: var(--space-2);
+  }
+  .flashcard-arabic {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+  .practice-choices-wrapper h3 {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-1);
+  }
+  .grid-choices {
+    gap: var(--space-2);
+  }
+  .choice-btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+}
+
 .spinner {
   width: 40px;
   height: 40px;

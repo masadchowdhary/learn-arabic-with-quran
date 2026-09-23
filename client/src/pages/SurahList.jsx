@@ -38,8 +38,7 @@ export default function SurahList() {
     }
   };
 
-  const handleSurahClick = (chapterNum, status) => {
-    if (status === 'locked') return;
+  const handleSurahClick = (chapterNum) => {
     navigate(`/surah/${chapterNum}`);
   };
 
@@ -57,33 +56,33 @@ export default function SurahList() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', maxWidth: '800px', margin: '0 auto' }}>
         {chapters.map(chapter => {
-          const prog = progressData[chapter.chapterNumber] || { status: 'locked', masteryPercentage: 0 };
-          const isLocked = isAuthenticated && prog.status === 'locked';
+          const prog = progressData[chapter.chapterNumber] || { status: 'not_started', masteryPercentage: 0 };
           const isCompleted = prog.status === 'completed';
 
           return (
             <div
               key={chapter.chapterNumber}
-              className={`surah-card ${isLocked ? 'locked' : ''} ${isCompleted ? 'completed' : ''}`}
-              onClick={() => handleSurahClick(chapter.chapterNumber, prog.status)}
+              className={`surah-card ${isCompleted ? 'completed' : ''}`}
+              onClick={() => handleSurahClick(chapter.chapterNumber)}
             >
               <div className="surah-number">{chapter.chapterNumber}</div>
               
               <div className="surah-info">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 className="surah-name-arabic">{chapter.nameArabic}</h3>
-                  {isLocked && <span className="icon lock-icon">🔒</span>}
                   {isCompleted && <span className="icon" style={{ color: 'var(--color-success)' }}>✅</span>}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--space-1)' }}>
-                  <span className="surah-name-translated">{chapter.translatedNameEn || chapter.nameEnglish}</span>
+                  <span className="surah-name-translated" style={{ fontFamily: 'var(--font-bengali)' }}>
+                    {chapter.nameBengali || chapter.translatedNameBn} • {chapter.translatedNameEn || chapter.nameEnglish}
+                  </span>
                   <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
                     {chapter.versesCount} আয়াত
                   </span>
                 </div>
               </div>
 
-              {isAuthenticated && !isLocked && (
+              {isAuthenticated && (
                 <div className="surah-progress">
                   <div className="surah-progress-text">{prog.masteryPercentage}% সম্পূর্ণ</div>
                   <div className="progress-bar">
@@ -98,3 +97,4 @@ export default function SurahList() {
     </div>
   );
 }
+

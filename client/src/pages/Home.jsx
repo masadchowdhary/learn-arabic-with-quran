@@ -45,8 +45,8 @@ export default function Home() {
 
         <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'center', flexWrap: 'wrap' }}>
           {isAuthenticated ? (
-            <Link to="/dashboard" className="btn btn-primary btn-lg">
-              📖 ড্যাশবোর্ডে যান
+            <Link to="/practice" className="btn btn-primary btn-lg">
+              📖 প্রাকটিস শুরু করুন
             </Link>
           ) : (
             <>

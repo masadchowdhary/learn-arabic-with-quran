@@ -9,8 +9,8 @@ export default function AyahView() {
   const [verses, setVerses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [visibleCount, setVisibleCount] = useState(20);
-  
+  const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
+
   // Audio state
   const [playingWord, setPlayingWord] = useState(null);
   const audioRef = useRef(null);
@@ -27,6 +27,7 @@ export default function AyahView() {
       ]);
       setChapter(chapRes.data.chapter);
       setVerses(verseRes.data.verses);
+      setCurrentAyahIndex(0);
     } catch (err) {
       setError('আয়াত লোড করতে সমস্যা হয়েছে।');
     } finally {
@@ -41,9 +42,7 @@ export default function AyahView() {
       audioRef.current.pause();
     }
     
-    // Quran.com audio URLs need the base prefix if they don't have it
     const fullUrl = url.startsWith('http') ? url : `https://audio.qurancdn.com/${url}`;
-    
     const audio = new Audio(fullUrl);
     audioRef.current = audio;
     
@@ -59,39 +58,66 @@ export default function AyahView() {
     };
   };
 
+  const handleNext = () => {
+    if (currentAyahIndex < verses.length - 1) {
+      setCurrentAyahIndex(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentAyahIndex > 0) {
+      setCurrentAyahIndex(prev => prev - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   if (loading) return <Loading />;
   if (error) return <div className="page container"><div className="empty-state">{error}</div></div>;
+
+  const currentVerse = verses[currentAyahIndex];
 
   return (
     <div className="page container">
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
-        <h1 className="text-arabic" style={{ fontSize: 'var(--font-size-4xl)' }}>
+      <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
+        <h1 className="text-arabic" style={{ fontSize: 'var(--font-size-3xl)' }}>
           {chapter.nameArabic}
         </h1>
-        <h2 style={{ fontFamily: 'var(--font-bengali)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-2)' }}>
+        <h2 style={{ fontFamily: 'var(--font-bengali)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-2)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-4)' }}>
           {chapter.translatedNameBn || chapter.nameBengali || chapter.nameEnglish}
         </h2>
-        <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'center', marginTop: 'var(--space-4)' }}>
-          <Link to={`/practice?chapter=${chapterNum}`} className="btn btn-primary">
-            🎴 এই সূরা প্রাকটিস করুন
-          </Link>
-          <Link to="/surahs" className="btn btn-outline">
-            ফিরে যান
-          </Link>
+        
+        <Link to={`/practice?chapter=${chapterNum}`} className="btn btn-accent">
+          🚀 শব্দ প্রাকটিস করুন
+        </Link>
+      </div>
+
+      {/* Progress Bar (Duolingo Style) */}
+      <div style={{ marginBottom: 'var(--space-6)', maxWidth: '900px', margin: '0 auto var(--space-6) auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontFamily: 'var(--font-bengali)', fontSize: 'var(--font-size-sm)' }}>
+          <span style={{ color: 'var(--color-text-muted)' }}>আয়াত {currentAyahIndex + 1} / {verses.length}</span>
+        </div>
+        <div className="progress-bar">
+          <div className="progress-bar-fill" style={{ width: `${((currentAyahIndex + 1) / verses.length) * 100}%` }}></div>
         </div>
       </div>
 
-      {/* Verses List */}
+      {/* Single Verse Card */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)', maxWidth: '900px', margin: '0 auto' }}>
-        {verses.slice(0, visibleCount).map((verse) => (
-          <div key={verse.verseKey} className="card">
+        {currentVerse && (
+          <div className="card">
             {/* Verse Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--space-3)' }}>
-              <span className="badge badge-primary">আয়াত {verse.verseNumber}</span>
+              <span className="badge badge-primary">আয়াত {currentVerse.verseNumber}</span>
               <button 
-                className={`audio-btn ${playingWord === verse.verseKey ? 'playing' : ''}`}
-                onClick={() => playAudio(verse.audioUrl, verse.verseKey)}
+                className={`audio-btn ${playingWord === currentVerse.verseKey ? 'playing' : ''}`}
+                onClick={() => {
+                  const c = chapterNum.toString().padStart(3, '0');
+                  const v = currentVerse.verseNumber.toString().padStart(3, '0');
+                  const verseAudioUrl = `https://audio.qurancdn.com/Alafasy/mp3/${c}${v}.mp3`;
+                  playAudio(verseAudioUrl, currentVerse.verseKey);
+                }}
                 title="সম্পূর্ণ আয়াত শুনুন"
               >
                 🔊
@@ -107,7 +133,7 @@ export default function AyahView() {
               direction: 'rtl',
               marginBottom: 'var(--space-6)'
             }}>
-              {verse.words.map((word, idx) => {
+              {currentVerse.words.map((word, idx) => {
                 if (word.charType === 'end') {
                   return (
                     <div key={idx} style={{ 
@@ -117,7 +143,7 @@ export default function AyahView() {
                       fontFamily: 'var(--font-arabic)', fontSize: 'var(--font-size-lg)',
                       alignSelf: 'center'
                     }}>
-                      {verse.verseNumber}
+                      {currentVerse.verseNumber}
                     </div>
                   );
                 }
@@ -138,31 +164,53 @@ export default function AyahView() {
             {/* Full Translations */}
             <div style={{ background: 'var(--color-bg-tertiary)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
               <div className="verse-translation bengali" style={{ marginBottom: 'var(--space-2)' }}>
-                <strong>বাংলা:</strong> {verse.translationBn}
+                <strong>বাংলা:</strong> {currentVerse.translationBn}
               </div>
               <div className="verse-translation">
-                <strong>English:</strong> {verse.translationEn}
+                <strong>English:</strong> {currentVerse.translationEn}
               </div>
             </div>
           </div>
-        ))}
+        )}
       </div>
       
-      {visibleCount < verses.length && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-6)' }}>
+      {/* Footer Navigation (Duolingo Style Fixed Bottom Navigation) */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        gap: 'var(--space-4)',
+        marginTop: 'var(--space-8)',
+        maxWidth: '900px',
+        margin: 'var(--space-8) auto 0 auto',
+        padding: 'var(--space-4) 0',
+      }}>
+        <button 
+          className="btn btn-outline" 
+          onClick={handlePrev}
+          disabled={currentAyahIndex === 0}
+          style={{ flex: 1 }}
+        >
+          পূর্ববর্তী
+        </button>
+
+        {currentAyahIndex < verses.length - 1 ? (
           <button 
-            className="btn btn-outline" 
-            onClick={() => setVisibleCount(prev => prev + 20)}
+            className="btn btn-primary" 
+            onClick={handleNext}
+            style={{ flex: 2 }}
           >
-            আরো আয়াত লোড করুন (Load More)
+            পরবর্তী আয়াত
           </button>
-        </div>
-      )}
-      
-      {/* Footer Navigation */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-10)' }}>
-        <Link to={`/practice?chapter=${chapterNum}`} className="btn btn-primary btn-lg">
-          🚀 প্রাকটিস শুরু করুন
+        ) : (
+          <Link to={`/practice?chapter=${chapterNum}`} className="btn btn-accent" style={{ flex: 2, justifyContent: 'center' }}>
+            🚀 প্রাকটিস শুরু করুন
+          </Link>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-6)' }}>
+        <Link to="/surahs" className="btn btn-ghost">
+          সূরা তালিকায় ফিরে যান
         </Link>
       </div>
     </div>

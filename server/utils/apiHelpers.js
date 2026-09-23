@@ -60,7 +60,7 @@ export async function fetchVersesWithWords(chapterNumber, language = 'bn') {
 
   while (page <= totalPages) {
     const data = await fetchWithRetry(
-      `${QURAN_API_BASE}/verses/by_chapter/${chapterNumber}?language=${language}&words=true&per_page=50&page=${page}&fields=text_uthmani`
+      `${QURAN_API_BASE}/verses/by_chapter/${chapterNumber}?language=${language}&words=true&word_fields=text_uthmani,text_imlaei&per_page=50&page=${page}&fields=text_uthmani`
     );
 
     allVerses.push(...data.verses);
@@ -157,7 +157,7 @@ export function mergeWordData(bnVerses, enVerses) {
 
       words.push({
         position: bnWord.position,
-        textArabic: bnWord.text || bnWord.code_v1 || '',
+        textArabic: bnWord.text_uthmani || bnWord.text || bnWord.code_v1 || '',
         translationBn: bnWord.translation?.text || '',
         translationEn: enWord.translation?.text || '',
         transliteration: bnWord.transliteration?.text || enWord.transliteration?.text || '',

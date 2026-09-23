@@ -16,7 +16,7 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <div className="navbar-content">
-        <Link to={isAuthenticated ? '/dashboard' : '/'} className="navbar-brand">
+        <Link to={isAuthenticated ? '/practice' : '/'} className="navbar-brand">
           <span className="icon">🕌</span>
           <span>কুরআনে আরবী</span>
         </Link>
@@ -24,9 +24,9 @@ export default function Navbar() {
         {isAuthenticated ? (
           <>
             <ul className="navbar-nav">
-              <li><Link to="/dashboard" className={isActive('/dashboard')}>ড্যাশবোর্ড</Link></li>
-              <li><Link to="/surahs" className={isActive('/surahs')}>সূরা সমূহ</Link></li>
               <li><Link to="/practice" className={isActive('/practice')}>প্রাকটিস</Link></li>
+              <li><Link to="/surahs" className={isActive('/surahs')}>সূরা সমূহ</Link></li>
+              <li><Link to="/dashboard" className={isActive('/dashboard')}>ড্যাশবোর্ড</Link></li>
               <li><Link to="/profile" className={isActive('/profile')}>প্রোফাইল</Link></li>
             </ul>
             <div className="navbar-stats">

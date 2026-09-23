@@ -208,7 +208,7 @@ export default function PracticeSession() {
   if (!currentWord) return null;
 
   return (
-    <div className="page container" style={{ maxWidth: '800px' }}>
+    <div className="container practice-page" style={{ maxWidth: '800px' }}>
       {/* XP Popups */}
       {xpPopups.map(popup => (
         <div key={popup.id} className="xp-popup">
@@ -216,71 +216,75 @@ export default function PracticeSession() {
         </div>
       ))}
 
-      {/* Progress Header */}
-      <div style={{ marginBottom: 'var(--space-8)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontFamily: 'var(--font-bengali)' }}>
-          <span style={{ color: 'var(--color-text-muted)' }}>শব্দ {currentIndex + 1} / {session.words.length}</span>
-          <span className="badge badge-primary">{currentWord.isReview ? 'রিভিউ' : 'নতুন শব্দ'}</span>
-        </div>
-        <div className="progress-bar">
-          <div className="progress-bar-fill" style={{ width: `${((currentIndex) / session.words.length) * 100}%` }}></div>
-        </div>
-      </div>
-
-      {/* Main Practice Area */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-8)', '@media (min-width: 768px)': { gridTemplateColumns: '1fr 1fr' } }}>
-        
-        {/* The Card */}
-        <div className="flashcard-container" onClick={() => setIsFlipped(!isFlipped)}>
-          <div className={`flashcard ${isFlipped ? 'flipped' : ''}`}>
-            {/* Front: Arabic */}
-            <div className="flashcard-face flashcard-front">
-              <div className="flashcard-arabic">{currentWord.textArabic}</div>
-              <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-bengali)' }}>
-                অর্থ দেখতে ট্যাপ করুন
-              </div>
-            </div>
-            
-            {/* Back: Translation */}
-            <div className="flashcard-face flashcard-back">
-              <div className="flashcard-arabic" style={{ fontSize: 'var(--font-size-2xl)', marginBottom: 'var(--space-4)' }}>
-                {currentWord.textArabic}
-              </div>
-              <div style={{ fontFamily: 'var(--font-bengali)', fontSize: 'var(--font-size-xl)', color: 'var(--color-accent)' }}>
-                {currentWord.translationBn}
-              </div>
-              <div style={{ fontSize: 'var(--font-size-base)', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 'var(--space-2)' }}>
-                {currentWord.transliteration}
-              </div>
-            </div>
+      <div className="practice-page-content">
+        {/* Progress Header */}
+        <div style={{ marginBottom: 'var(--space-4)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontFamily: 'var(--font-bengali)' }}>
+            <span style={{ color: 'var(--color-text-muted)' }}>শব্দ {currentIndex + 1} / {session.words.length}</span>
+            <span className="badge badge-primary">{currentWord.isReview ? 'রিভিউ' : 'নতুন শব্দ'}</span>
+          </div>
+          <div className="progress-bar">
+            <div className="progress-bar-fill" style={{ width: `${((currentIndex) / session.words.length) * 100}%` }}></div>
           </div>
         </div>
 
-        {/* MCQ Choices */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', justifyContent: 'center' }}>
-          <h3 style={{ fontFamily: 'var(--font-bengali)', textAlign: 'center', marginBottom: 'var(--space-2)' }}>
-            সঠিক অর্থটি নির্বাচন করুন:
-          </h3>
+        {/* Main Practice Area */}
+        <div className="practice-area">
           
-          <div className="grid-choices">
-            {currentWord.choices.map((choice, idx) => {
-              let btnClass = "choice-btn";
-              if (showAnswer) {
-                if (choice.isCorrect) btnClass += " correct";
-                else if (selectedChoice === choice.translationBn && !choice.isCorrect) btnClass += " incorrect";
-              }
+          {/* The Card */}
+          <div className="practice-flashcard-wrapper">
+            <div className="flashcard-container" onClick={() => setIsFlipped(!isFlipped)}>
+              <div className={`flashcard ${isFlipped ? 'flipped' : ''}`}>
+                {/* Front: Arabic */}
+                <div className="flashcard-face flashcard-front">
+                  <div className="flashcard-arabic">{currentWord.textArabic}</div>
+                  <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-bengali)' }}>
+                    অর্থ দেখতে ট্যাপ করুন
+                  </div>
+                </div>
+                
+                {/* Back: Translation */}
+                <div className="flashcard-face flashcard-back">
+                  <div className="flashcard-arabic" style={{ fontSize: 'var(--font-size-2xl)', marginBottom: 'var(--space-4)' }}>
+                    {currentWord.textArabic}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-bengali)', fontSize: 'var(--font-size-xl)', color: 'var(--color-accent)' }}>
+                    {currentWord.translationBn}
+                  </div>
+                  <div style={{ fontSize: 'var(--font-size-base)', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 'var(--space-2)' }}>
+                    {currentWord.transliteration}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-              return (
-                <button
-                  key={idx}
-                  className={btnClass}
-                  onClick={() => handleChoice(choice.isCorrect, choice.translationBn)}
-                  disabled={showAnswer}
-                >
-                  {choice.translationBn}
-                </button>
-              );
-            })}
+          {/* MCQ Choices */}
+          <div className="practice-choices-wrapper">
+            <h3 style={{ fontFamily: 'var(--font-bengali)', textAlign: 'center', marginBottom: 'var(--space-2)' }}>
+              সঠিক অর্থটি নির্বাচন করুন:
+            </h3>
+            
+            <div className="grid-choices">
+              {currentWord.choices.map((choice, idx) => {
+                let btnClass = "choice-btn";
+                if (showAnswer) {
+                  if (choice.isCorrect) btnClass += " correct";
+                  else if (selectedChoice === choice.translationBn && !choice.isCorrect) btnClass += " incorrect";
+                }
+
+                return (
+                  <button
+                    key={idx}
+                    className={btnClass}
+                    onClick={() => handleChoice(choice.isCorrect, choice.translationBn)}
+                    disabled={showAnswer}
+                  >
+                    {choice.translationBn}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

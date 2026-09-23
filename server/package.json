@@ -2,11 +2,11 @@
   "name": "learn-arabic-with-quran-server",
   "version": "1.0.0",
   "description": "Backend API for Learn Arabic with Quran - A Duolingo-style Arabic learning platform powered by Quran word-by-word data",
-  "main": "server.js",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "seed": "node scripts/importFromJSON.js",
     "verify": "node scripts/verifyData.js"
   },

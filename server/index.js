@@ -51,22 +51,20 @@ app.use('*', (req, res) => {
 // ─── Error Handler ──────────────────────────────────
 app.use(errorHandler);
 
-// ─── Start Server ───────────────────────────────────
-async function startServer() {
-  try {
-    await connectDB();
+// ─── Start Server / Export App ──────────────────────
+// Connect to the database (Vercel serverless function will reuse the connection)
+connectDB();
 
-    app.listen(PORT, () => {
-      console.log(`\n╔═══════════════════════════════════════════════╗`);
-      console.log(`║   🕌 Learn Arabic with Quran API               ║`);
-      console.log(`║   Server running on port ${PORT}                  ║`);
-      console.log(`║   http://localhost:${PORT}                        ║`);
-      console.log(`╚═══════════════════════════════════════════════╝\n`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
-    process.exit(1);
-  }
+// Only start the server if not running on Vercel (or in production)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`\n╔═══════════════════════════════════════════════╗`);
+    console.log(`║   🕌 Learn Arabic with Quran API               ║`);
+    console.log(`║   Server running on port ${PORT}                  ║`);
+    console.log(`║   http://localhost:${PORT}                        ║`);
+    console.log(`╚═══════════════════════════════════════════════╝\n`);
+  });
 }
 
-startServer();
+// Export the Express API for Vercel
+export default app;

@@ -53,6 +53,9 @@ export default function Home() {
               <Link to="/register" className="btn btn-primary btn-lg">
                 🚀 শেখা শুরু করুন
               </Link>
+              <Link to="/learn" className="btn btn-accent btn-lg">
+                🗺️ শেখার পথ দেখুন
+              </Link>
               <Link to="/login" className="btn btn-outline btn-lg">
                 লগইন করুন
               </Link>

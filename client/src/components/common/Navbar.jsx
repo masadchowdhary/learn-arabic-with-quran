@@ -24,6 +24,7 @@ export default function Navbar() {
         {isAuthenticated ? (
           <>
             <ul className="navbar-nav">
+              <li><Link to="/learn" className={isActive('/learn')}>শেখার পথ</Link></li>
               <li><Link to="/practice" className={isActive('/practice')}>প্রাকটিস</Link></li>
               <li><Link to="/surahs" className={isActive('/surahs')}>সূরা সমূহ</Link></li>
               <li><Link to="/dashboard" className={isActive('/dashboard')}>ড্যাশবোর্ড</Link></li>
@@ -44,6 +45,8 @@ export default function Navbar() {
           </>
         ) : (
           <ul className="navbar-nav">
+            <li><Link to="/learn" className={isActive('/learn')}>শেখার পথ</Link></li>
+            <li><Link to="/surahs" className={isActive('/surahs')}>সূরা সমূহ</Link></li>
             <li><Link to="/login" className="btn btn-ghost btn-sm">লগইন</Link></li>
             <li><Link to="/register" className="btn btn-primary btn-sm">রেজিস্টার</Link></li>
           </ul>

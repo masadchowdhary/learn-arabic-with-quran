@@ -28,9 +28,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const hadToken = !!localStorage.getItem('token');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
+
+      // Only redirect to login if the user had a token (session expired)
+      // and they are on a page that requires auth (not public content pages)
+      const publicPaths = ['/', '/login', '/register', '/surahs', '/surah', '/learn', '/practice'];
+      const isPublicPath = publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith('/surah/'));
+      
+      if (hadToken && !isPublicPath && window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
     }

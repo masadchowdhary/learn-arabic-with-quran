@@ -1193,3 +1193,179 @@ h4 { font-size: var(--font-size-xl); }
 .level-badge.scholar { background: rgba(249, 115, 22, 0.15); color: #F97316; }
 .level-badge.master { background: rgba(242, 169, 0, 0.15); color: #F2A900; }
 .level-badge.hafiz { background: rgba(236, 72, 153, 0.15); color: #EC4899; }
+
+/* ═══════════════════════════════════════════════════════════
+   🗺️ Learning Path — Duolingo-style winding road
+   ═══════════════════════════════════════════════════════════ */
+
+.learning-path-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: var(--space-4) 0 var(--space-8);
+}
+
+.path-step {
+  position: relative;
+  width: 100%;
+  display: flex;
+  margin-bottom: var(--space-2);
+  transition: transform 0.2s ease;
+}
+
+.path-step.path-left { justify-content: flex-start; padding-left: var(--space-4); }
+.path-step.path-center { justify-content: center; }
+.path-step.path-right { justify-content: flex-end; padding-right: var(--space-4); }
+
+/* Connector line between nodes */
+.path-connector {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  width: 3px;
+  height: 16px;
+  background: linear-gradient(180deg, var(--color-border), var(--color-primary-glow));
+  transform: translateX(-50%);
+  opacity: 0.5;
+}
+
+/* The clickable node */
+.path-node {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  max-width: 320px;
+  width: 100%;
+}
+
+.path-node:hover {
+  border-color: var(--color-primary-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), 0 0 20px var(--color-primary-glow);
+}
+
+.path-node:active {
+  transform: translateY(0px);
+}
+
+.path-node-completed {
+  border-color: var(--color-success);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), var(--color-bg-card));
+}
+
+.path-node-completed:hover {
+  border-color: var(--color-success);
+  box-shadow: var(--shadow-md), 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+.path-node-progress {
+  border-color: var(--color-primary-light);
+  background: linear-gradient(135deg, var(--color-primary-glow), var(--color-bg-card));
+}
+
+/* Progress ring around the number */
+.path-node-ring {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+}
+
+.path-ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(0deg);
+}
+
+.path-node-inner {
+  position: absolute;
+  inset: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-bg-secondary);
+  font-weight: 800;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+}
+
+.path-node-completed .path-node-inner {
+  background: linear-gradient(135deg, var(--color-success), #059669);
+  color: white;
+}
+
+.path-node-progress .path-node-inner {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  color: white;
+}
+
+.path-node-number {
+  font-family: var(--font-english);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Labels */
+.path-node-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.path-node-arabic {
+  font-family: var(--font-arabic);
+  font-size: var(--font-size-xl);
+  color: var(--color-text-primary);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-node-bengali {
+  font-family: var(--font-bengali);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-node-meta {
+  font-family: var(--font-bengali);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* ─── Responsive ───────────────────────────────────── */
+@media (max-width: 640px) {
+  .path-step.path-left,
+  .path-step.path-center,
+  .path-step.path-right {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .path-node {
+    max-width: 100%;
+  }
+
+  .path-node-ring {
+    width: 48px;
+    height: 48px;
+  }
+}
+

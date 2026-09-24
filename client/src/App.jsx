@@ -14,6 +14,7 @@ import SurahList from './pages/SurahList';
 import AyahView from './pages/AyahView';
 import PracticeSession from './pages/PracticeSession';
 import Profile from './pages/Profile';
+import LearningPath from './pages/LearningPath';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -42,6 +43,7 @@ function AppContent() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/learn" element={<LearningPath />} />
         <Route path="/surahs" element={<SurahList />} />
         
         <Route 

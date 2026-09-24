@@ -24,12 +24,16 @@ export default function SurahList() {
 
       // Fetch progress if authenticated
       if (isAuthenticated) {
-        const progRes = await progressAPI.getChapters();
-        const progMap = {};
-        progRes.data.chapters.forEach(cp => {
-          progMap[cp.chapterNumber] = cp;
-        });
-        setProgressData(progMap);
+        try {
+          const progRes = await progressAPI.getChapters();
+          const progMap = {};
+          progRes.data.chapters.forEach(cp => {
+            progMap[cp.chapterNumber] = cp;
+          });
+          setProgressData(progMap);
+        } catch {
+          // Progress unavailable — continue without it
+        }
       }
     } catch (err) {
       setError('সূরা সমূহ লোড করতে সমস্যা হয়েছে।');

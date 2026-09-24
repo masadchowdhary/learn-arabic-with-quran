@@ -6,8 +6,8 @@
  * for the data seeding pipeline.
  */
 
-const QURAN_API_BASE = 'https://api.quran.com/api/v4';
-const QURAN_AUDIO_BASE = 'https://audio.qurancdn.com';
+const QURAN_API_BASE = process.env.QURAN_API_BASE || 'https://api.quran.com/api/v4';
+const QURAN_AUDIO_BASE = process.env.QURAN_AUDIO_BASE || 'https://audio.qurancdn.com';
 
 /**
  * Generic fetch with retry logic and rate limiting

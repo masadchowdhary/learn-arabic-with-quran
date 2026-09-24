@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { chapterAPI, verseAPI } from '../api';
 import Loading from '../components/common/Loading';
 
+const QURAN_AUDIO_BASE = import.meta.env.VITE_QURAN_AUDIO_BASE || 'https://audio.qurancdn.com';
+
 export default function AyahView() {
   const { chapterNum } = useParams();
   const [chapter, setChapter] = useState(null);
@@ -42,7 +44,7 @@ export default function AyahView() {
       audioRef.current.pause();
     }
     
-    const fullUrl = url.startsWith('http') ? url : `https://audio.qurancdn.com/${url}`;
+    const fullUrl = url.startsWith('http') ? url : `${QURAN_AUDIO_BASE}/${url}`;
     const audio = new Audio(fullUrl);
     audioRef.current = audio;
     
@@ -115,7 +117,7 @@ export default function AyahView() {
                 onClick={() => {
                   const c = chapterNum.toString().padStart(3, '0');
                   const v = currentVerse.verseNumber.toString().padStart(3, '0');
-                  const verseAudioUrl = `https://audio.qurancdn.com/Alafasy/mp3/${c}${v}.mp3`;
+                  const verseAudioUrl = `${QURAN_AUDIO_BASE}/Alafasy/mp3/${c}${v}.mp3`;
                   playAudio(verseAudioUrl, currentVerse.verseKey);
                 }}
                 title="সম্পূর্ণ আয়াত শুনুন"

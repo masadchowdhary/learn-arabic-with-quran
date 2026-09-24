@@ -10,6 +10,7 @@ import chapterRoutes from './routes/chapters.js';
 import verseRoutes from './routes/verses.js';
 import practiceRoutes from './routes/practice.js';
 import progressRoutes from './routes/progress.js';
+import adminRoutes from './routes/admin.js';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api/chapters', chapterRoutes);
 app.use('/api/verses', verseRoutes);
 app.use('/api/practice', practiceRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ─── Health Check ───────────────────────────────────
 app.get('/api/health', (req, res) => {

@@ -15,6 +15,7 @@ import AyahView from './pages/AyahView';
 import PracticeSession from './pages/PracticeSession';
 import Profile from './pages/Profile';
 import LearningPath from './pages/LearningPath';
+import AdminSync from './pages/AdminSync';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -73,6 +74,9 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
+        
+        {/* Admin Route (Hidden) */}
+        <Route path="/admin/sync-data" element={<AdminSync />} />
         
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

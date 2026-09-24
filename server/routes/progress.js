@@ -4,6 +4,7 @@ import MasteredWord from '../models/MasteredWord.js';
 import UserProgress from '../models/UserProgress.js';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
+import optionalAuth from '../middleware/optionalAuth.js';
 
 const router = express.Router();
 
@@ -67,9 +68,18 @@ router.get('/overview', auth, async (req, res, next) => {
 /**
  * GET /api/progress/chapters
  * All surah progress percentages
+ * Uses optionalAuth so public pages (learning path, surah list) can call it
  */
-router.get('/chapters', auth, async (req, res, next) => {
+router.get('/chapters', optionalAuth, async (req, res, next) => {
   try {
+    // Guest user — return empty progress
+    if (!req.userId) {
+      return res.json({
+        success: true,
+        chapters: []
+      });
+    }
+
     const progress = await UserProgress.findOne({ userId: req.userId });
 
     if (!progress) {

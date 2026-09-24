@@ -4,10 +4,8 @@ async function testAll() {
   try {
     console.log("1. Registering user...");
     const res = await axios.post('http://localhost:5000/api/auth/register', {
-      username: `test_${Date.now()}`,
       email: `test_${Date.now()}@test.com`,
-      password: 'password123',
-      preferredLanguage: 'bn'
+      password: 'password123'
     });
     
     console.log("Register response:", res.status);

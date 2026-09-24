@@ -4,11 +4,9 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
   const [formData, setFormData] = useState({
-    username: '',
     email: '',
     password: '',
-    displayName: '',
-    preferredLanguage: 'bn'
+    displayName: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,20 +73,6 @@ export default function Register() {
             </div>
 
             <div className="input-group" style={{ marginBottom: 'var(--space-4)' }}>
-              <label>ইউজারনেম</label>
-              <input
-                type="text"
-                className="input"
-                name="username"
-                placeholder="একটি ইউজারনেম দিন"
-                value={formData.username}
-                onChange={handleChange}
-                required
-                minLength={3}
-              />
-            </div>
-
-            <div className="input-group" style={{ marginBottom: 'var(--space-4)' }}>
               <label>ইমেইল</label>
               <input
                 type="email"
@@ -115,18 +99,6 @@ export default function Register() {
               />
             </div>
 
-            <div className="input-group" style={{ marginBottom: 'var(--space-6)' }}>
-              <label>পছন্দের ভাষা</label>
-              <select
-                className="input"
-                name="preferredLanguage"
-                value={formData.preferredLanguage}
-                onChange={handleChange}
-              >
-                <option value="bn">বাংলা</option>
-                <option value="en">English</option>
-              </select>
-            </div>
 
             <button
               type="submit"

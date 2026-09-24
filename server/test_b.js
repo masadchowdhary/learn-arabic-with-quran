@@ -5,10 +5,8 @@ async function testAll() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: `test_${Date.now()}`,
         email: `test_${Date.now()}@test.com`,
-        password: 'password123',
-        preferredLanguage: 'bn'
+        password: 'password123'
       })
     });
     const data = await res.json();

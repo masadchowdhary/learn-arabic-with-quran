@@ -2,14 +2,6 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    required: [true, 'ইউজারনেম প্রয়োজন'],
-    unique: true,
-    trim: true,
-    minlength: [3, 'ইউজারনেম কমপক্ষে ৩ অক্ষরের হতে হবে'],
-    maxlength: [30, 'ইউজারনেম সর্বোচ্চ ৩০ অক্ষরের হতে পারবে']
-  },
   email: {
     type: String,
     required: [true, 'ইমেইল প্রয়োজন'],
@@ -25,11 +17,6 @@ const userSchema = new mongoose.Schema({
   displayName: {
     type: String,
     default: ''
-  },
-  preferredLanguage: {
-    type: String,
-    enum: ['bn', 'en'],
-    default: 'bn'
   },
 
   // Gamification

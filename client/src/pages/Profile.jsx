@@ -7,10 +7,8 @@ export default function Profile() {
   const { user, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState('stats'); // 'settings', 'stats', 'words'
   
-  // Settings State
   const [formData, setFormData] = useState({
     displayName: user?.displayName || '',
-    preferredLanguage: user?.preferredLanguage || 'bn',
     dailyGoal: user?.dailyGoal || 10
   });
   const [saving, setSaving] = useState(false);
@@ -115,7 +113,7 @@ export default function Profile() {
           {user?.displayName?.charAt(0).toUpperCase() || 'U'}
         </div>
         <h1 style={{ fontFamily: 'var(--font-bengali)' }}>{user?.displayName}</h1>
-        <p style={{ color: 'var(--color-text-muted)' }}>@{user?.username}</p>
+        <p style={{ color: 'var(--color-text-muted)' }}>{user?.email}</p>
         
         <div style={{ marginTop: 'var(--space-2)', fontSize: 'var(--font-size-lg)', color: 'var(--color-accent)', fontWeight: 'bold' }}>
           {masteryLevelName(user?.level || 1)}
@@ -305,18 +303,6 @@ export default function Profile() {
               </select>
             </div>
 
-            <div className="input-group" style={{ marginBottom: 'var(--space-6)' }}>
-              <label>পছন্দের ভাষা</label>
-              <select
-                className="input"
-                name="preferredLanguage"
-                value={formData.preferredLanguage}
-                onChange={handleChange}
-              >
-                <option value="bn">বাংলা</option>
-                <option value="en">English</option>
-              </select>
-            </div>
 
             <button
               type="submit"

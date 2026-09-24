@@ -33,7 +33,7 @@ export default function Dashboard() {
       {/* Welcome Header */}
       <div style={{ marginBottom: 'var(--space-8)' }}>
         <h1 style={{ fontFamily: 'var(--font-bengali)', marginBottom: 'var(--space-2)' }}>
-          আসসালামু আলাইকুম, {user?.displayName || user?.username}! 👋
+          আসসালামু আলাইকুম, {user?.displayName || 'ব্যবহারকারী'}! 👋
         </h1>
         <p style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-bengali)' }}>
           আজকের দিনের প্রাকটিস শুরু করতে প্রস্তুত?

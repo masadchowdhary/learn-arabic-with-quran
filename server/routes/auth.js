@@ -20,7 +20,6 @@ function generateToken(userId) {
  * Create a new user account
  */
 router.post('/register', [
-  body('username').trim().isLength({ min: 3, max: 30 }).withMessage('ইউজারনেম ৩-৩০ অক্ষরের হতে হবে'),
   body('email').isEmail().normalizeEmail().withMessage('সঠিক ইমেইল দিন'),
   body('password').isLength({ min: 6 }).withMessage('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে'),
   body('displayName').optional().trim()
@@ -31,26 +30,22 @@ router.post('/register', [
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { username, email, password, displayName, preferredLanguage } = req.body;
+    const { email, password, displayName } = req.body;
 
     // Check if user exists
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
-    });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'ইমেইল বা ইউজারনেম ইতিমধ্যে ব্যবহৃত হয়েছে'
+        message: 'ইমেইল ইতিমধ্যে ব্যবহৃত হয়েছে'
       });
     }
 
     // Create user
     const user = new User({
-      username,
       email,
       passwordHash: password,  // Will be hashed by pre-save hook
-      displayName: displayName || username,
-      preferredLanguage: preferredLanguage || 'bn'
+      displayName: displayName || email.split('@')[0]
     });
     await user.save();
 
@@ -81,10 +76,9 @@ router.post('/register', [
       token,
       user: {
         id: user._id,
-        username: user.username,
         email: user.email,
         displayName: user.displayName,
-        preferredLanguage: user.preferredLanguage,
+
         xp: user.xp,
         level: user.level,
         streak: user.streak
@@ -137,10 +131,9 @@ router.post('/login', [
       token,
       user: {
         id: user._id,
-        username: user.username,
         email: user.email,
         displayName: user.displayName,
-        preferredLanguage: user.preferredLanguage,
+
         xp: user.xp,
         level: user.level,
         streak: user.streak,
@@ -166,10 +159,9 @@ router.get('/me', auth, async (req, res, next) => {
       success: true,
       user: {
         id: user._id,
-        username: user.username,
         email: user.email,
         displayName: user.displayName,
-        preferredLanguage: user.preferredLanguage,
+
         xp: user.xp,
         level: user.level,
         streak: user.streak,
@@ -197,15 +189,15 @@ router.get('/me', auth, async (req, res, next) => {
  */
 router.put('/profile', auth, [
   body('displayName').optional().trim().isLength({ min: 1, max: 50 }),
-  body('preferredLanguage').optional().isIn(['bn', 'en']),
+
   body('dailyGoal').optional().isIn([5, 10, 15, 20])
 ], async (req, res, next) => {
   try {
-    const { displayName, preferredLanguage, dailyGoal } = req.body;
+    const { displayName, dailyGoal } = req.body;
     const updates = {};
 
     if (displayName) updates.displayName = displayName;
-    if (preferredLanguage) updates.preferredLanguage = preferredLanguage;
+
     if (dailyGoal) updates.dailyGoal = dailyGoal;
 
     const user = await User.findByIdAndUpdate(req.userId, updates, { new: true });
@@ -215,9 +207,8 @@ router.put('/profile', auth, [
       message: 'প্রোফাইল আপডেট হয়েছে ✅',
       user: {
         id: user._id,
-        username: user.username,
         displayName: user.displayName,
-        preferredLanguage: user.preferredLanguage,
+
         dailyGoal: user.dailyGoal
       }
     });

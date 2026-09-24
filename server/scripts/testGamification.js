@@ -78,7 +78,7 @@ async function runTests() {
   // 1. Create Test User
   const testEmail = `test_${Date.now()}@example.com`;
   const user = new User({
-    username: 'testuser',
+
     email: testEmail,
     passwordHash: 'hashed',
     displayName: 'Test User'

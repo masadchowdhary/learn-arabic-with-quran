@@ -24,7 +24,7 @@ const Footer = () => {
 
         <div style={{ marginTop: '1rem' }}>
           <p style={{ margin: 0, fontSize: '0.9rem' }}>
-            &copy; {currentYear} Learn Arabic with Quran. All rights reserved.
+            &copy; {currentYear} Learn Arabic with Quran. All rights reserved. <Link to="/admin/sync-data" style={{ opacity: 0, position: 'absolute', width: '10px', height: '10px' }}>.</Link>
           </p>
           <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', opacity: 0.8 }}>
             Data provided by <a href="https://quran.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>Quran.com</a> API.

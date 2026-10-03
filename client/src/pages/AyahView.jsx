@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { chapterAPI, verseAPI } from '../api';
 import Loading from '../components/common/Loading';
 
 const QURAN_AUDIO_BASE = import.meta.env.VITE_QURAN_AUDIO_BASE || 'https://audio.qurancdn.com';
 
 export default function AyahView() {
-  const { chapterNum } = useParams();
+  const { chapterNum, verseNum } = useParams();
+  const navigate = useNavigate();
   const [chapter, setChapter] = useState(null);
   const [verses, setVerses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,11 +18,27 @@ export default function AyahView() {
   const [playingWord, setPlayingWord] = useState(null);
   const audioRef = useRef(null);
 
+  // Fetch data only when chapter changes
   useEffect(() => {
     fetchData();
   }, [chapterNum]);
 
+  // Update current verse when URL verseNum changes, without re-fetching
+  useEffect(() => {
+    if (verses.length > 0) {
+      let initialIndex = 0;
+      if (verseNum) {
+        const vIndex = parseInt(verseNum, 10) - 1;
+        if (vIndex >= 0 && vIndex < verses.length) {
+          initialIndex = vIndex;
+        }
+      }
+      setCurrentAyahIndex(initialIndex);
+    }
+  }, [verseNum, verses]);
+
   const fetchData = async () => {
+    setLoading(true);
     try {
       const [chapRes, verseRes] = await Promise.all([
         chapterAPI.getOne(chapterNum),
@@ -29,7 +46,6 @@ export default function AyahView() {
       ]);
       setChapter(chapRes.data.chapter);
       setVerses(verseRes.data.verses);
-      setCurrentAyahIndex(0);
     } catch (err) {
       setError('আয়াত লোড করতে সমস্যা হয়েছে।');
     } finally {
@@ -62,14 +78,14 @@ export default function AyahView() {
 
   const handleNext = () => {
     if (currentAyahIndex < verses.length - 1) {
-      setCurrentAyahIndex(prev => prev + 1);
+      navigate(`/surah/${chapterNum}/verse/${currentAyahIndex + 2}`, { replace: true });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const handlePrev = () => {
     if (currentAyahIndex > 0) {
-      setCurrentAyahIndex(prev => prev - 1);
+      navigate(`/surah/${chapterNum}/verse/${currentAyahIndex}`, { replace: true });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };

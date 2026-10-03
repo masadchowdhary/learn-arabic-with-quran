@@ -52,6 +52,10 @@ function AppContent() {
           element={<AyahView />} 
         />
         <Route 
+          path="/surah/:chapterNum/verse/:verseNum" 
+          element={<AyahView />} 
+        />
+        <Route 
           path="/practice" 
           element={<PracticeSession />} 
         />

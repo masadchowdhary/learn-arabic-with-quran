@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
@@ -98,6 +99,7 @@ export default function App() {
           <AppContent />
         </AuthProvider>
       </BrowserRouter>
+      <Analytics />
     </ErrorBoundary>
   );
 }

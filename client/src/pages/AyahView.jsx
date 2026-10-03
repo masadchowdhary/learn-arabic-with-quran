@@ -1,18 +1,44 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { chapterAPI, verseAPI } from '../api';
+import { useAuth } from '../context/AuthContext';
 import Loading from '../components/common/Loading';
 
 const QURAN_AUDIO_BASE = import.meta.env.VITE_QURAN_AUDIO_BASE || 'https://audio.qurancdn.com';
 
+// Must match server/routes/practice.js
+const LEARNED_LEVEL = 3;
+
+function wordScore(rec) {
+  if (!rec) return 0;
+  if (rec.level >= LEARNED_LEVEL) return 1;
+  return Math.min(rec.correct || 0, LEARNED_LEVEL - 1) / LEARNED_LEVEL;
+}
+
+function computeProgress(arabicWords, wordLevels) {
+  const unique = [...new Set(arabicWords)];
+  let score = 0;
+  let learned = 0;
+  for (const w of unique) {
+    const s = wordScore(wordLevels[w]);
+    score += s;
+    if (s >= 1) learned++;
+  }
+  const total = unique.length;
+  const percent = total === 0 ? 0 : learned === total ? 100 : Math.min(99, Math.floor((score / total) * 100));
+  return { total, learned, percent, completed: total > 0 && learned === total };
+}
+
 export default function AyahView() {
   const { chapterNum, verseNum } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [chapter, setChapter] = useState(null);
   const [verses, setVerses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
+  const [wordLevels, setWordLevels] = useState(null);
 
   // Audio state
   const [playingWord, setPlayingWord] = useState(null);
@@ -22,6 +48,19 @@ export default function AyahView() {
   useEffect(() => {
     fetchData();
   }, [chapterNum]);
+
+  // User progress is loaded separately so it never delays the page itself
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setWordLevels(null);
+      return;
+    }
+    let cancelled = false;
+    chapterAPI.getProgress(chapterNum)
+      .then(res => { if (!cancelled) setWordLevels(res.data.wordLevels || {}); })
+      .catch(() => { if (!cancelled) setWordLevels(null); });
+    return () => { cancelled = true; };
+  }, [chapterNum, isAuthenticated]);
 
   // Update current verse when URL verseNum changes, without re-fetching
   useEffect(() => {
@@ -39,6 +78,7 @@ export default function AyahView() {
 
   const fetchData = async () => {
     setLoading(true);
+    setError('');
     try {
       const [chapRes, verseRes] = await Promise.all([
         chapterAPI.getOne(chapterNum),
@@ -52,6 +92,21 @@ export default function AyahView() {
       setLoading(false);
     }
   };
+
+  // Per-verse + surah progress, computed live from the user's word mastery
+  const progress = useMemo(() => {
+    if (!wordLevels || verses.length === 0) return null;
+    const perVerse = verses.map(v =>
+      computeProgress(v.words.filter(w => w.charType === 'word').map(w => w.textArabic), wordLevels)
+    );
+    const allWords = verses.flatMap(v => v.words.filter(w => w.charType === 'word').map(w => w.textArabic));
+    const chapterProg = computeProgress(allWords, wordLevels);
+    return {
+      perVerse,
+      chapter: chapterProg,
+      versesCompleted: perVerse.filter(p => p.completed).length
+    };
+  }, [wordLevels, verses]);
 
   const playAudio = (url, wordId) => {
     if (!url) return;
@@ -90,10 +145,16 @@ export default function AyahView() {
     }
   };
 
+  const goToAyah = (index) => {
+    navigate(`/surah/${chapterNum}/verse/${index + 1}`, { replace: true });
+  };
+
   if (loading) return <Loading />;
   if (error) return <div className="page container"><div className="empty-state">{error}</div></div>;
 
   const currentVerse = verses[currentAyahIndex];
+  const currentVerseProg = progress?.perVerse[currentAyahIndex];
+  const practiceLink = `/practice?chapter=${chapterNum}&verse=${currentAyahIndex + 1}`;
 
   return (
     <div className="page container">
@@ -106,9 +167,64 @@ export default function AyahView() {
           {chapter.translatedNameBn || chapter.nameBengali || chapter.nameEnglish}
         </h2>
         
-        <Link to={`/practice?chapter=${chapterNum}`} className="btn btn-accent">
-          🚀 শব্দ প্রাকটিস করুন
+        <Link to={practiceLink} id="practice-verse-btn" className="btn btn-accent">
+          🚀 আয়াত {currentAyahIndex + 1}-এর শব্দ প্রাকটিস করুন
         </Link>
+      </div>
+
+      {/* Learning progress (logged-in users) */}
+      {progress && (
+        <div className="card ayah-progress-card">
+          <div className="ayah-progress-item">
+            <div className="ayah-progress-head">
+              <span>সূরা প্রগ্রেস</span>
+              <strong>{progress.chapter.percent}%</strong>
+            </div>
+            <div className="progress-bar">
+              <div className="progress-bar-fill gold" style={{ width: `${progress.chapter.percent}%` }}></div>
+            </div>
+            <div className="ayah-progress-detail">
+              {progress.versesCompleted}/{verses.length} আয়াত সম্পূর্ণ • {progress.chapter.learned}/{progress.chapter.total} শব্দ শেখা
+            </div>
+          </div>
+          {currentVerseProg && (
+            <div className="ayah-progress-item">
+              <div className="ayah-progress-head">
+                <span>আয়াত {currentAyahIndex + 1}</span>
+                <strong>{currentVerseProg.completed ? '✅ 100%' : `${currentVerseProg.percent}%`}</strong>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-bar-fill" style={{ width: `${currentVerseProg.percent}%` }}></div>
+              </div>
+              <div className="ayah-progress-detail">
+                {currentVerseProg.learned}/{currentVerseProg.total} শব্দ পুরোপুরি শেখা
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ayah map */}
+      <div className="ayah-map" role="navigation" aria-label="আয়াত নেভিগেশন">
+        {verses.map((v, idx) => {
+          const p = progress?.perVerse[idx];
+          let cls = 'ayah-chip';
+          if (p?.completed) cls += ' completed';
+          else if (p && p.percent > 0) cls += ' in-progress';
+          if (idx === currentAyahIndex) cls += ' current';
+          return (
+            <button
+              key={v.verseKey}
+              id={`ayah-chip-${v.verseNumber}`}
+              className={cls}
+              onClick={() => goToAyah(idx)}
+              title={p ? `আয়াত ${v.verseNumber}: ${p.percent}%` : `আয়াত ${v.verseNumber}`}
+              style={p && !p.completed && p.percent > 0 ? { '--chip-fill': `${p.percent}%` } : undefined}
+            >
+              {v.verseNumber}
+            </button>
+          );
+        })}
       </div>
 
       {/* Progress Bar (Duolingo Style) */}
@@ -166,11 +282,22 @@ export default function AyahView() {
                   );
                 }
 
+                const rec = wordLevels?.[word.textArabic];
+                const wordState = !wordLevels ? '' : wordScore(rec) >= 1 ? 'learned' : rec ? 'learning' : '';
+
                 return (
-                  <div key={idx} className="word-card" onClick={() => playAudio(word.audioUrl, word.textArabic + idx)}>
+                  <div key={idx} className={`word-card ${wordState}`} onClick={() => playAudio(word.audioUrl, word.textArabic + idx)}>
+                    {wordState === 'learned' && <span className="word-state-badge" title="শেখা হয়েছে">✓</span>}
                     <div className="arabic">{word.textArabic}</div>
                     <div className="transliteration">{word.transliteration}</div>
                     <div className="translation-bn">{word.translationBn}</div>
+                    {wordState === 'learning' && (
+                      <div className="word-dots" title={`${Math.min(rec.correct, LEARNED_LEVEL)}/${LEARNED_LEVEL} বার সঠিক`}>
+                        {Array.from({ length: LEARNED_LEVEL }).map((_, i) => (
+                          <span key={i} className={i < Math.min(rec.correct, LEARNED_LEVEL) ? 'filled' : ''}></span>
+                        ))}
+                      </div>
+                    )}
                     {playingWord === word.textArabic + idx && (
                       <div style={{ color: 'var(--color-primary-light)', fontSize: 'var(--font-size-xs)' }}>🔊</div>
                     )}
@@ -220,8 +347,8 @@ export default function AyahView() {
             পরবর্তী আয়াত
           </button>
         ) : (
-          <Link to={`/practice?chapter=${chapterNum}`} className="btn btn-accent" style={{ flex: 2, justifyContent: 'center' }}>
-            🚀 প্রাকটিস শুরু করুন
+          <Link to={practiceLink} className="btn btn-accent" style={{ flex: 2, justifyContent: 'center' }}>
+            🚀 এই আয়াত প্রাকটিস করুন
           </Link>
         )}
       </div>

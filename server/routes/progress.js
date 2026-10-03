@@ -5,6 +5,7 @@ import UserProgress from '../models/UserProgress.js';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
 import optionalAuth from '../middleware/optionalAuth.js';
+import { getChapter } from '../utils/quranCache.js';
 
 const router = express.Router();
 
@@ -14,21 +15,31 @@ const router = express.Router();
  */
 router.get('/overview', auth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.userId);
-    const progress = await UserProgress.findOne({ userId: req.userId });
+    const user = req.user;
+
+    // Run independent queries in parallel; skip the heavy verseProgress array
+    const [progress, wordsInProgress] = await Promise.all([
+      UserProgress.findOne({ userId: req.userId }, { verseProgress: 0 }).lean(),
+      MasteredWord.countDocuments({ userId: req.userId, masteryLevel: { $gte: 1, $lt: 3 } })
+    ]);
 
     if (!progress) {
       return res.json({
         success: true,
         overview: {
           totalWordsLearned: 0,
+          wordsInProgress,
           totalVersesCompleted: 0,
           totalChaptersCompleted: 0,
           xp: user.xp,
           level: user.level,
+          levelProgress: 0,
+          xpToNextLevel: 0,
           streak: user.streak,
           longestStreak: user.longestStreak,
-          currentChapter: null
+          badges: user.badges,
+          currentChapter: null,
+          currentChapterProgress: null
         }
       });
     }
@@ -40,10 +51,27 @@ router.get('/overview', auth, async (req, res, next) => {
     const xpToNextLevel = nextLevelXp - user.xp;
     const levelProgress = ((user.xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100;
 
+    // Current surah progress (for the "continue" card)
+    let currentChapterProgress = null;
+    if (progress.currentChapter) {
+      const cp = progress.chapterProgress.find(c => c.chapterNumber === progress.currentChapter);
+      const chapter = await getChapter(progress.currentChapter);
+      currentChapterProgress = {
+        chapterNumber: progress.currentChapter,
+        nameArabic: chapter?.nameArabic || '',
+        name: chapter?.nameBengali || chapter?.translatedNameBn || chapter?.nameSimple || '',
+        versesCount: chapter?.versesCount || 0,
+        masteryPercentage: cp?.masteryPercentage || 0,
+        versesCompleted: cp?.versesCompleted?.length || 0,
+        status: cp?.status || 'in_progress'
+      };
+    }
+
     res.json({
       success: true,
       overview: {
         totalWordsLearned: progress.totalWordsLearned,
+        wordsInProgress,
         totalVersesCompleted: progress.totalVersesCompleted,
         totalChaptersCompleted: progress.totalChaptersCompleted,
         totalChapters: 114,
@@ -57,6 +85,8 @@ router.get('/overview', auth, async (req, res, next) => {
         dailyGoal: user.dailyGoal,
         badges: user.badges,
         currentChapter: progress.currentChapter,
+        currentVerse: progress.currentVerse,
+        currentChapterProgress,
         lastPracticeDate: user.lastPracticeDate
       }
     });
@@ -72,7 +102,7 @@ router.get('/overview', auth, async (req, res, next) => {
  */
 router.get('/chapters', optionalAuth, async (req, res, next) => {
   try {
-    // Guest user — return empty progress
+    // Guest user â€” return empty progress
     if (!req.userId) {
       return res.json({
         success: true,
@@ -80,7 +110,10 @@ router.get('/chapters', optionalAuth, async (req, res, next) => {
       });
     }
 
-    const progress = await UserProgress.findOne({ userId: req.userId });
+    const progress = await UserProgress.findOne(
+      { userId: req.userId },
+      { chapterProgress: 1 }
+    ).lean();
 
     if (!progress) {
       return res.json({

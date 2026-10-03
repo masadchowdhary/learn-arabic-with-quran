@@ -10,6 +10,7 @@ import {
   mergeWordData,
   addTranslationsToVerses
 } from '../utils/apiHelpers.js';
+import { clearQuranCache } from '../utils/quranCache.js';
 
 const router = express.Router();
 
@@ -93,6 +94,7 @@ router.post('/seed-chapter/:chapterNum', async (req, res, next) => {
     
     await Verse.deleteMany({ chapterNumber: chapterNum });
     await Verse.insertMany(mergedVerses);
+    clearQuranCache(chapterNum);
     
     res.json({ success: true, message: `Seeded chapter ${chapterNum}`, versesCount: mergedVerses.length });
   } catch (error) {

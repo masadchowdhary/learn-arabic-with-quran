@@ -73,6 +73,10 @@ const verseProgressSchema = new mongoose.Schema({
   lastPracticed: {
     type: Date,
     default: null
+  },
+  completedAt: {
+    type: Date,
+    default: null  // First time the verse reached 100% (used to award XP once)
   }
 }, { _id: false });
 

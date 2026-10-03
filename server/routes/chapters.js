@@ -1,7 +1,14 @@
 import express from 'express';
-import Chapter from '../models/Chapter.js';
 import UserProgress from '../models/UserProgress.js';
+import MasteredWord from '../models/MasteredWord.js';
 import auth from '../middleware/auth.js';
+import {
+  getAllChapters,
+  getChapter,
+  getChapterVerses,
+  getVerseWords,
+  STATIC_CACHE_HEADER
+} from '../utils/quranCache.js';
 
 const router = express.Router();
 
@@ -12,10 +19,9 @@ const router = express.Router();
  */
 router.get('/', async (req, res, next) => {
   try {
-    const chapters = await Chapter.find()
-      .sort({ difficultyOrder: 1 })
-      .lean();
+    const chapters = await getAllChapters();
 
+    res.set('Cache-Control', STATIC_CACHE_HEADER);
     res.json({
       success: true,
       count: chapters.length,
@@ -41,7 +47,7 @@ router.get('/:number', async (req, res, next) => {
       });
     }
 
-    const chapter = await Chapter.findOne({ chapterNumber }).lean();
+    const chapter = await getChapter(chapterNumber);
 
     if (!chapter) {
       return res.status(404).json({
@@ -50,6 +56,7 @@ router.get('/:number', async (req, res, next) => {
       });
     }
 
+    res.set('Cache-Control', STATIC_CACHE_HEADER);
     res.json({
       success: true,
       chapter
@@ -61,40 +68,47 @@ router.get('/:number', async (req, res, next) => {
 
 /**
  * GET /api/chapters/:number/progress
- * Get user's progress for a specific surah
+ * Get user's progress for a specific surah.
+ * Also returns `wordLevels` — the user's mastery for every word in the surah —
+ * so the client can show live per-ayah / per-word progress.
  * Protected route
  */
 router.get('/:number/progress', auth, async (req, res, next) => {
   try {
     const chapterNumber = parseInt(req.params.number);
 
-    const progress = await UserProgress.findOne({ userId: req.userId });
-
-    if (!progress) {
-      return res.status(404).json({
-        success: false,
-        message: 'প্রগ্রেস পাওয়া যায়নি'
-      });
+    const verses = await getChapterVerses(chapterNumber);
+    const chapterWords = new Set();
+    for (const verse of verses) {
+      for (const w of getVerseWords(verse)) chapterWords.add(w.textArabic);
     }
 
-    const chapterProgress = progress.chapterProgress.find(
-      cp => cp.chapterNumber === chapterNumber
-    );
+    const [progress, wordRecords] = await Promise.all([
+      UserProgress.findOne(
+        { userId: req.userId },
+        { chapterProgress: { $elemMatch: { chapterNumber } } }
+      ).lean(),
+      MasteredWord.find(
+        { userId: req.userId, wordArabic: { $in: [...chapterWords] } },
+        { wordArabic: 1, masteryLevel: 1, correctCount: 1, _id: 0 }
+      ).lean()
+    ]);
 
-    const verseProgress = progress.verseProgress.filter(
-      vp => vp.chapterNumber === chapterNumber
-    );
+    const wordLevels = {};
+    for (const r of wordRecords) {
+      wordLevels[r.wordArabic] = { level: r.masteryLevel, correct: r.correctCount };
+    }
 
     res.json({
       success: true,
-      chapterProgress: chapterProgress || {
+      chapterProgress: progress?.chapterProgress?.[0] || {
         chapterNumber,
-        totalWords: 0,
+        totalWords: chapterWords.size,
         masteredWords: 0,
         masteryPercentage: 0,
-        status: 'locked'
+        status: 'in_progress'
       },
-      verseProgress
+      wordLevels
     });
   } catch (error) {
     next(error);

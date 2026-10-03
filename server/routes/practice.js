@@ -1,11 +1,11 @@
 import express from 'express';
-import Verse from '../models/Verse.js';
 import MasteredWord from '../models/MasteredWord.js';
 import UserProgress from '../models/UserProgress.js';
 import PracticeHistory from '../models/PracticeHistory.js';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
 import optionalAuth from '../middleware/optionalAuth.js';
+import { getChapterVerses, getChapter, getVerseWords } from '../utils/quranCache.js';
 
 const router = express.Router();
 
@@ -19,24 +19,130 @@ const XP_REWARDS = {
   REVIEW_CORRECT: 5
 };
 
+// A word counts as "learned" once it reaches this mastery level (3 = Practiced)
+const LEARNED_LEVEL = 3;
+const MAX_SESSION_SIZE = 20;
+const MIN_WORDS_FOR_PERFECT_BONUS = 3;
+
+// ─── Helpers ─────────────────────────────────────────
+
+/**
+ * Progress score of a single word (0..1).
+ * Learned words count fully; otherwise each correct answer gives partial
+ * credit, so progress becomes visible right after the first session.
+ */
+function wordScore(record) {
+  if (!record) return 0;
+  if (record.masteryLevel >= LEARNED_LEVEL) return 1;
+  return Math.min(record.correctCount || 0, LEARNED_LEVEL - 1) / LEARNED_LEVEL;
+}
+
+function uniqueWords(words) {
+  const seen = new Set();
+  const out = [];
+  for (const w of words) {
+    if (seen.has(w.textArabic)) continue;
+    seen.add(w.textArabic);
+    out.push(w);
+  }
+  return out;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/** Percentage that only reaches 100 when everything is fully learned. */
+function progressPercent(score, learned, total) {
+  if (total === 0) return 0;
+  if (learned === total) return 100;
+  return Math.min(99, Math.floor((score / total) * 100));
+}
+
+function computeStats(words, wordMap) {
+  let score = 0;
+  let learned = 0;
+  for (const arabic of words) {
+    const s = wordScore(wordMap.get(arabic));
+    score += s;
+    if (s >= 1) learned++;
+  }
+  return {
+    totalWords: words.length,
+    masteredWords: learned,
+    masteryPercentage: progressPercent(score, learned, words.length),
+    completed: words.length > 0 && learned === words.length
+  };
+}
+
+function verseUniqueArabic(verse) {
+  return uniqueWords(getVerseWords(verse)).map(w => w.textArabic);
+}
+
+/** Pool of distractor meanings (unique Bengali translations). */
+function buildDistractorPool(verses) {
+  const seen = new Set();
+  const pool = [];
+  for (const verse of verses) {
+    for (const w of getVerseWords(verse)) {
+      const key = (w.translationBn || '').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      pool.push({ textArabic: w.textArabic, translationBn: key, translationEn: w.translationEn });
+    }
+  }
+  return pool;
+}
+
+/** Pick `count` random distractors whose meaning differs from the correct one. */
+function pickDistractors(pool, correctKey, count = 3) {
+  const picked = [];
+  const used = new Set([correctKey]);
+  let attempts = 0;
+  const maxAttempts = pool.length * 3;
+
+  while (picked.length < count && attempts < maxAttempts) {
+    attempts++;
+    const candidate = pool[Math.floor(Math.random() * pool.length)];
+    if (used.has(candidate.translationBn)) continue;
+    used.add(candidate.translationBn);
+    picked.push(candidate);
+  }
+  return picked;
+}
+
+// ─── Routes ──────────────────────────────────────────
+
 /**
  * POST /api/practice/session
- * Generate a practice session (flashcard deck)
- * Body: { chapterNumber, sessionSize (default 10), mode: 'new' | 'review' | 'mixed' }
+ * Generate an AYAH-based practice session (flashcard deck).
+ * Body: { chapterNumber, verseNumber?, sessionSize (default 10) }
+ *  - verseNumber given  → practice the words of that ayah
+ *  - verseNumber absent → auto-pick the first ayah that isn't fully learned yet
+ * The session is never empty: if every word of the ayah is already learned,
+ * they are served again as review.
  */
 router.post('/session', optionalAuth, async (req, res, next) => {
   try {
-    const { chapterNumber, sessionSize = 10, mode = 'mixed' } = req.body;
+    const chapterNumber = parseInt(req.body.chapterNumber);
+    const requestedVerse = req.body.verseNumber ? parseInt(req.body.verseNumber) : null;
+    const sessionSize = Math.min(Math.max(parseInt(req.body.sessionSize) || 10, 1), MAX_SESSION_SIZE);
 
-    if (!chapterNumber) {
+    if (!chapterNumber || chapterNumber < 1 || chapterNumber > 114) {
       return res.status(400).json({
         success: false,
         message: 'সূরা নম্বর প্রয়োজন'
       });
     }
 
-    // Get all words from this chapter's verses
-    const verses = await Verse.find({ chapterNumber }).sort({ verseNumber: 1 }).lean();
+    const [verses, chapter] = await Promise.all([
+      getChapterVerses(chapterNumber),
+      getChapter(chapterNumber)
+    ]);
 
     if (verses.length === 0) {
       return res.status(404).json({
@@ -45,114 +151,101 @@ router.post('/session', optionalAuth, async (req, res, next) => {
       });
     }
 
-    // Flatten all actual words (not 'end' markers)
-    const allWords = [];
-    for (const verse of verses) {
-      for (const word of verse.words) {
-        if (word.charType === 'word') {
-          allWords.push({
-            ...word,
-            verseKey: verse.verseKey,
-            chapterNumber: verse.chapterNumber,
-            verseNumber: verse.verseNumber
-          });
-        }
-      }
-    }
-
-    // Get user's mastered words for this chapter if logged in
-    let masteredWords = [];
+    // Load the user's word records for this surah (one query)
+    let wordMap = new Map();
     if (req.userId) {
-      masteredWords = await MasteredWord.find({
-        userId: req.userId,
-        'appearsIn.chapterNumber': chapterNumber
-      }).lean();
+      const chapterWords = new Set();
+      for (const v of verses) for (const w of getVerseWords(v)) chapterWords.add(w.textArabic);
+
+      const records = await MasteredWord.find(
+        { userId: req.userId, wordArabic: { $in: [...chapterWords] } },
+        { wordArabic: 1, masteryLevel: 1, correctCount: 1, nextReviewDate: 1, _id: 0 }
+      ).lean();
+      wordMap = new Map(records.map(r => [r.wordArabic, r]));
     }
 
-    const masteredArabicSet = new Set(masteredWords.map(w => w.wordArabic));
-
-    // Split into new and review words
-    const newWords = allWords.filter(w => !masteredArabicSet.has(w.textArabic));
-    const reviewWords = masteredWords.filter(
-      w => !w.nextReviewDate || new Date(w.nextReviewDate) <= new Date()
-    );
-
-    // Build session based on mode
-    let sessionWords = [];
-
-    if (mode === 'new') {
-      sessionWords = newWords.slice(0, sessionSize);
-    } else if (mode === 'review') {
-      sessionWords = reviewWords.slice(0, sessionSize).map(w => ({
-        textArabic: w.wordArabic,
-        translationBn: w.translationBn,
-        translationEn: w.translationEn,
-        transliteration: w.transliteration,
-        masteryLevel: w.masteryLevel,
-        isReview: true
-      }));
+    // Pick the ayah
+    let verse = null;
+    if (requestedVerse) {
+      verse = verses.find(v => v.verseNumber === requestedVerse);
+      if (!verse) {
+        return res.status(404).json({ success: false, message: 'আয়াত পাওয়া যায়নি' });
+      }
     } else {
-      // Mixed: 70% new, 30% review
-      const newCount = Math.ceil(sessionSize * 0.7);
-      const reviewCount = sessionSize - newCount;
+      verse = verses.find(v =>
+        getVerseWords(v).some(w => (wordMap.get(w.textArabic)?.masteryLevel || 0) < LEARNED_LEVEL)
+      ) || verses[0];
+    }
 
-      const selectedNew = newWords.slice(0, newCount);
-      const selectedReview = reviewWords.slice(0, reviewCount).map(w => ({
-        textArabic: w.wordArabic,
+    // Build candidate words for this ayah, ordered by priority
+    const now = new Date();
+    const candidates = uniqueWords(getVerseWords(verse)).map(w => {
+      const rec = wordMap.get(w.textArabic);
+      const level = rec?.masteryLevel || 0;
+      const learned = level >= LEARNED_LEVEL;
+      const due = learned && (!rec.nextReviewDate || new Date(rec.nextReviewDate) <= now);
+      return {
+        textArabic: w.textArabic,
         translationBn: w.translationBn,
         translationEn: w.translationEn,
         transliteration: w.transliteration,
-        masteryLevel: w.masteryLevel,
-        isReview: true
-      }));
+        audioUrl: w.audioUrl,
+        position: w.position,
+        verseKey: verse.verseKey,
+        verseNumber: verse.verseNumber,
+        chapterNumber,
+        masteryLevel: level,
+        isNew: !rec,
+        isReview: learned,
+        // 0 = new / still learning, 1 = due for review, 2 = learned (extra practice)
+        priority: !learned ? 0 : due ? 1 : 2
+      };
+    });
 
-      sessionWords = [...selectedNew, ...selectedReview];
+    if (candidates.length === 0) {
+      return res.status(404).json({ success: false, message: 'এই আয়াতে প্রাকটিস করার মতো শব্দ নেই' });
     }
 
-    // Shuffle the session
-    for (let i = sessionWords.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [sessionWords[i], sessionWords[j]] = [sessionWords[j], sessionWords[i]];
+    candidates.sort((a, b) =>
+      a.priority - b.priority || a.masteryLevel - b.masteryLevel || a.position - b.position
+    );
+    const selected = shuffle(candidates.slice(0, sessionSize));
+
+    // Distractors come from the whole surah (fallback to Al-Fatiha for tiny surahs)
+    let pool = buildDistractorPool(verses);
+    if (pool.length < 4 && chapterNumber !== 1) {
+      pool = pool.concat(buildDistractorPool(await getChapterVerses(1)));
     }
 
-    // Generate MCQ choices for each word
-    const sessionWithChoices = sessionWords.map(word => {
-      // Get 3 random wrong answers from all words
-      const wrongChoices = allWords
-        .filter(w => w.textArabic !== word.textArabic)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 3)
-        .map(w => ({
-          textArabic: w.textArabic,
-          translationBn: w.translationBn,
-          translationEn: w.translationEn
-        }));
-
-      // Add correct answer and shuffle
-      const choices = [
+    const words = selected.map(word => {
+      const correctKey = (word.translationBn || '').trim();
+      const choices = shuffle([
         {
           textArabic: word.textArabic,
           translationBn: word.translationBn,
           translationEn: word.translationEn,
           isCorrect: true
         },
-        ...wrongChoices.map(c => ({ ...c, isCorrect: false }))
-      ].sort(() => Math.random() - 0.5);
-
-      return {
-        ...word,
-        choices
-      };
+        ...pickDistractors(pool, correctKey).map(c => ({ ...c, isCorrect: false }))
+      ]);
+      const { priority, ...rest } = word;
+      return { ...rest, choices };
     });
 
     res.json({
       success: true,
       session: {
         chapterNumber,
-        totalWords: sessionWithChoices.length,
-        newWordsCount: sessionWords.filter(w => !w.isReview).length,
-        reviewWordsCount: sessionWords.filter(w => w.isReview).length,
-        words: sessionWithChoices
+        chapterNameArabic: chapter?.nameArabic || '',
+        chapterName: chapter?.nameBengali || chapter?.translatedNameBn || chapter?.nameSimple || '',
+        verseNumber: verse.verseNumber,
+        verseKey: verse.verseKey,
+        totalVerses: verses.length,
+        verseTotalWords: candidates.length,
+        totalWords: words.length,
+        newWordsCount: words.filter(w => !w.isReview).length,
+        reviewWordsCount: words.filter(w => w.isReview).length,
+        words
       }
     });
   } catch (error) {
@@ -163,29 +256,24 @@ router.post('/session', optionalAuth, async (req, res, next) => {
 /**
  * POST /api/practice/submit
  * Submit practice session results
- * Body: { chapterNumber, results: [{ wordArabic, correct, verseKey }], duration }
+ * Body: { chapterNumber, verseKey?, results: [{ wordArabic, correct, verseKey }], duration }
+ * A word may appear more than once in `results` (retries) — attempts are aggregated.
  */
 router.post('/submit', optionalAuth, async (req, res, next) => {
   try {
-    const { chapterNumber, results, duration = 0 } = req.body;
+    const chapterNumber = parseInt(req.body.chapterNumber);
+    const { results, duration = 0 } = req.body;
 
-    if (!results || !Array.isArray(results)) {
+    if (!results || !Array.isArray(results) || !chapterNumber) {
       return res.status(400).json({
         success: false,
         message: 'ফলাফল ডেটা প্রয়োজন'
       });
     }
 
-    let xpEarned = 0;
-    let wordsCorrect = results.filter(r => r.correct).length;
-    const verseKeysSet = new Set();
-    const newBadges = [];
-
-    // Check for perfect session
-    const accuracy = results.length > 0 ? (wordsCorrect / results.length) * 100 : 0;
-    if (accuracy === 100 && results.length >= 5) {
-      xpEarned += XP_REWARDS.PERFECT_SESSION;
-    }
+    const validResults = results.filter(r => r && typeof r.wordArabic === 'string' && r.wordArabic);
+    const wordsCorrect = validResults.filter(r => r.correct).length;
+    const accuracy = validResults.length > 0 ? (wordsCorrect / validResults.length) * 100 : 0;
 
     if (!req.userId) {
       // Guest user: Just return the summary without saving to DB
@@ -193,7 +281,7 @@ router.post('/submit', optionalAuth, async (req, res, next) => {
         success: true,
         message: 'প্রাকটিস সেশন সম্পন্ন হয়েছে! প্রগ্রেস সেভ করতে লগইন করুন। 🚀',
         summary: {
-          wordsAttempted: results.length,
+          wordsAttempted: validResults.length,
           wordsCorrect,
           accuracy: Math.round(accuracy),
           xpEarned: 0,
@@ -206,114 +294,149 @@ router.post('/submit', optionalAuth, async (req, res, next) => {
       });
     }
 
-    // Process each word result for logged in users
-    for (const result of results) {
-      const { wordArabic, correct, verseKey, translationBn, translationEn, transliteration } = result;
+    // Aggregate attempts per word
+    const byWord = new Map();
+    const verseKeysSet = new Set();
+    for (const r of validResults) {
+      let entry = byWord.get(r.wordArabic);
+      if (!entry) {
+        entry = { meta: r, correct: 0, incorrect: 0, verseKeys: new Set() };
+        byWord.set(r.wordArabic, entry);
+      }
+      if (r.correct) entry.correct++;
+      else entry.incorrect++;
+      if (r.verseKey) {
+        entry.verseKeys.add(r.verseKey);
+        verseKeysSet.add(r.verseKey);
+      }
+    }
 
-      if (!wordArabic) continue;
+    const [user, existingDocs] = await Promise.all([
+      User.findById(req.userId),
+      MasteredWord.find({ userId: req.userId, wordArabic: { $in: [...byWord.keys()] } })
+    ]);
 
-      if (verseKey) verseKeysSet.add(verseKey);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'ইউজার পাওয়া যায়নি (User not found)' });
+    }
 
-      // Find or create mastered word entry
-      let masteredWord = await MasteredWord.findOne({
-        userId: req.userId,
-        wordArabic
-      });
+    // Update word mastery in memory, then save everything in ONE bulk write
+    const docMap = new Map(existingDocs.map(d => [d.wordArabic, d]));
+    const docsToSave = [];
+    let xpEarned = 0;
 
-      if (!masteredWord) {
-        masteredWord = new MasteredWord({
+    for (const [wordArabic, entry] of byWord) {
+      const firstVerseKey = [...entry.verseKeys][0] || '';
+      let doc = docMap.get(wordArabic);
+
+      if (!doc) {
+        doc = new MasteredWord({
           userId: req.userId,
           wordArabic,
-          translationBn: translationBn || '',
-          translationEn: translationEn || '',
-          transliteration: transliteration || '',
+          translationBn: entry.meta.translationBn || '',
+          translationEn: entry.meta.translationEn || '',
+          transliteration: entry.meta.transliteration || '',
           firstEncountered: {
             chapterNumber,
-            verseNumber: verseKey ? parseInt(verseKey.split(':')[1]) : 0,
-            verseKey: verseKey || ''
+            verseNumber: firstVerseKey ? parseInt(firstVerseKey.split(':')[1]) : 0,
+            verseKey: firstVerseKey
           },
-          appearsIn: verseKey ? [{
-            chapterNumber,
-            verseNumber: parseInt(verseKey.split(':')[1]),
-            verseKey
-          }] : []
+          appearsIn: []
         });
       }
 
-      if (correct) {
-        masteredWord.correctCount += 1;
-        // Don't add to wordsCorrect here, we already did it for both guests and users above
-        // wait, we only want to calculate xpEarned for DB updates here
-        xpEarned += masteredWord.masteryLevel >= 4
-          ? XP_REWARDS.REVIEW_CORRECT
-          : XP_REWARDS.CORRECT_ANSWER;
-      } else {
-        masteredWord.incorrectCount += 1;
+      xpEarned += entry.correct * (doc.masteryLevel >= 4 ? XP_REWARDS.REVIEW_CORRECT : XP_REWARDS.CORRECT_ANSWER);
+      doc.correctCount += entry.correct;
+      doc.incorrectCount += entry.incorrect;
+
+      for (const vk of entry.verseKeys) {
+        if (!doc.appearsIn.some(a => a.verseKey === vk)) {
+          const [c, v] = vk.split(':').map(Number);
+          doc.appearsIn.push({ chapterNumber: c, verseNumber: v, verseKey: vk });
+        }
       }
 
-      // Update mastery level and schedule next review
-      masteredWord.updateMasteryLevel();
-      masteredWord.scheduleNextReview();
-      await masteredWord.save();
+      doc.updateMasteryLevel();
+      doc.scheduleNextReview();
+      docsToSave.push(doc);
     }
 
-    // Update user XP, level, and streak
-    const user = await User.findById(req.userId);
+    if (docsToSave.length > 0) {
+      await MasteredWord.bulkSave(docsToSave);
+    }
+
+    // Recalculate progress + total learned words in parallel
+    const [progressResult, totalMasteredWords] = await Promise.all([
+      updateUserProgress(req.userId, chapterNumber, verseKeysSet),
+      MasteredWord.countDocuments({ userId: req.userId, masteryLevel: { $gte: LEARNED_LEVEL } })
+    ]);
+    const { progress } = progressResult;
+    progress.totalWordsLearned = totalMasteredWords;
+
+    // Bonus XP
+    if (accuracy === 100 && validResults.length >= MIN_WORDS_FOR_PERFECT_BONUS) {
+      xpEarned += XP_REWARDS.PERFECT_SESSION;
+    }
+    xpEarned += progressResult.newlyCompletedVerses.length * XP_REWARDS.COMPLETE_VERSE;
+    if (progressResult.chapterJustCompleted) xpEarned += XP_REWARDS.COMPLETE_SURAH;
+
+    // Update user XP, level, streak, badges
     user.xp += xpEarned;
     user.level = user.calculateLevel();
     user.updateStreak();
-    await user.save();
 
-    // Check for badges
-    const totalMasteredWords = await MasteredWord.countDocuments({
-      userId: req.userId,
-      masteryLevel: { $gte: 3 }
-    });
-
+    const newBadges = [];
     if (totalMasteredWords >= 1 && !user.badges.includes('first_word')) {
       user.badges.push('first_word');
       newBadges.push('🎯 প্রথম শব্দ — First Word!');
-      await user.save();
     }
     if (totalMasteredWords >= 100 && !user.badges.includes('century')) {
       user.badges.push('century');
       newBadges.push('🌟 শতক — 100 Words Learned!');
-      await user.save();
     }
     if (user.streak >= 7 && !user.badges.includes('streak_7')) {
       user.badges.push('streak_7');
       newBadges.push('🔥 ৭-দিন স্ট্রিক — 7-Day Streak!');
-      await user.save();
     }
 
-    // Update user progress
-    await updateUserProgress(req.userId, chapterNumber);
+    await Promise.all([
+      user.save(),
+      progress.save(),
+      PracticeHistory.create({
+        userId: req.userId,
+        sessionType: 'flashcard',
+        chapterNumber,
+        verseKeys: [...verseKeysSet],
+        wordsAttempted: validResults.length,
+        wordsCorrect,
+        accuracy: Math.round(accuracy),
+        xpEarned,
+        duration
+      })
+    ]);
 
-    // Save practice history
-    await PracticeHistory.create({
-      userId: req.userId,
-      sessionType: 'flashcard',
-      chapterNumber,
-      verseKeys: [...verseKeysSet],
-      wordsAttempted: results.length,
-      wordsCorrect,
-      accuracy: Math.round(accuracy),
-      xpEarned,
-      duration
-    });
+    // Progress info for the summary screen
+    const sessionVerseKey = (typeof req.body.verseKey === 'string' && req.body.verseKey) || [...verseKeysSet][0] || null;
+    const verseStats = sessionVerseKey ? progressResult.verseStats[sessionVerseKey] : null;
 
     res.json({
       success: true,
       message: 'প্রাকটিস সেশন সংরক্ষিত হয়েছে! ✅',
       summary: {
-        wordsAttempted: results.length,
+        wordsAttempted: validResults.length,
         wordsCorrect,
         accuracy: Math.round(accuracy),
         xpEarned,
         totalXp: user.xp,
         level: user.level,
         streak: user.streak,
-        newBadges
+        newBadges,
+        progress: {
+          verse: verseStats ? { verseKey: sessionVerseKey, ...verseStats } : null,
+          chapter: progressResult.chapterStats,
+          newlyCompletedVerses: progressResult.newlyCompletedVerses,
+          chapterJustCompleted: progressResult.chapterJustCompleted
+        }
       }
     });
   } catch (error) {
@@ -349,113 +472,134 @@ router.get('/review', auth, async (req, res, next) => {
 });
 
 /**
- * Helper: Update user progress for a chapter after practice
+ * Helper: Recalculate the user's chapter + verse progress after practice.
+ * Returns the (unsaved) progress document plus stats for the summary screen.
  */
-async function updateUserProgress(userId, chapterNumber) {
-  // Count mastered words for this chapter
-  const verses = await Verse.find({ chapterNumber }).lean();
-  const allWordsInChapter = new Set();
-  const verseWordCounts = {};
+async function updateUserProgress(userId, chapterNumber, practicedVerseKeys) {
+  const verses = await getChapterVerses(chapterNumber);
 
-  for (const verse of verses) {
-    const verseWords = verse.words.filter(w => w.charType === 'word');
-    verseWordCounts[verse.verseKey] = verseWords.length;
-    verseWords.forEach(w => allWordsInChapter.add(w.textArabic));
+  const chapterWordSet = new Set();
+  for (const v of verses) for (const w of getVerseWords(v)) chapterWordSet.add(w.textArabic);
+  const chapterWords = [...chapterWordSet];
+
+  const [records, existingProgress] = await Promise.all([
+    MasteredWord.find(
+      { userId, wordArabic: { $in: chapterWords } },
+      { wordArabic: 1, masteryLevel: 1, correctCount: 1, _id: 0 }
+    ).lean(),
+    UserProgress.findOne({ userId })
+  ]);
+
+  // Older accounts may not have a progress document — create it on the fly
+  const progress = existingProgress || new UserProgress({ userId, chapterProgress: [], verseProgress: [] });
+  const wordMap = new Map(records.map(r => [r.wordArabic, r]));
+  const now = new Date();
+
+  // ── Verse progress ──
+  const existingVP = new Map();
+  for (const vp of progress.verseProgress) {
+    if (vp.chapterNumber === chapterNumber) existingVP.set(vp.verseKey, vp);
   }
 
-  const masteredWords = await MasteredWord.find({
-    userId,
-    wordArabic: { $in: [...allWordsInChapter] },
-    masteryLevel: { $gte: 3 }  // "Practiced" or above counts as mastered
-  }).lean();
+  const verseStats = {};
+  const versesCompleted = [];
+  const newlyCompletedVerses = [];
 
-  const masteredSet = new Set(masteredWords.map(w => w.wordArabic));
-
-  // Update chapter progress
-  const progress = await UserProgress.findOne({ userId });
-  if (!progress) return;
-
-  const chapterIdx = progress.chapterProgress.findIndex(
-    cp => cp.chapterNumber === chapterNumber
-  );
-
-  if (chapterIdx !== -1) {
-    const cp = progress.chapterProgress[chapterIdx];
-    cp.masteredWords = masteredSet.size;
-    cp.totalWords = allWordsInChapter.size;
-    cp.masteryPercentage = allWordsInChapter.size > 0
-      ? Math.round((masteredSet.size / allWordsInChapter.size) * 100)
-      : 0;
-
-    if (cp.status === 'locked') cp.status = 'in_progress';
-    if (!cp.startedAt) cp.startedAt = new Date();
-
-    if (cp.masteryPercentage >= 100) {
-      cp.status = 'completed';
-      cp.completedAt = new Date();
-    }
-
-    // Check if next surah should be unlocked (70% threshold)
-    if (cp.masteryPercentage >= 70) {
-      const nextIdx = chapterIdx + 1;
-      if (nextIdx < progress.chapterProgress.length) {
-        if (progress.chapterProgress[nextIdx].status === 'locked') {
-          progress.chapterProgress[nextIdx].status = 'in_progress';
-        }
-      }
-    }
-  }
-
-  // Update verse progress
   for (const verse of verses) {
-    const verseWords = verse.words.filter(w => w.charType === 'word');
-    const masteredInVerse = verseWords.filter(w => masteredSet.has(w.textArabic)).length;
+    const stats = computeStats(verseUniqueArabic(verse), wordMap);
+    verseStats[verse.verseKey] = { verseNumber: verse.verseNumber, ...stats };
+    if (stats.completed) versesCompleted.push(verse.verseNumber);
 
-    const existingVP = progress.verseProgress.find(vp => vp.verseKey === verse.verseKey);
-    if (existingVP) {
-      existingVP.masteredWords = masteredInVerse;
-      existingVP.totalWords = verseWords.length;
-      existingVP.masteryPercentage = verseWords.length > 0
-        ? Math.round((masteredInVerse / verseWords.length) * 100)
-        : 0;
-      existingVP.lastPracticed = new Date();
-      existingVP.practiceCount += 1;
-      if (existingVP.masteryPercentage >= 100) {
-        existingVP.status = 'completed';
-      } else if (existingVP.status === 'locked') {
-        existingVP.status = 'in_progress';
-      }
-    } else {
+    const practiced = practicedVerseKeys.has(verse.verseKey);
+    const vp = existingVP.get(verse.verseKey);
+
+    // Don't store untouched verses
+    if (!vp && stats.masteryPercentage === 0 && !practiced) continue;
+
+    const status = stats.completed ? 'completed' : 'in_progress';
+
+    if (!vp) {
       progress.verseProgress.push({
         verseKey: verse.verseKey,
         chapterNumber,
         verseNumber: verse.verseNumber,
-        totalWords: verseWords.length,
-        masteredWords: masteredInVerse,
-        masteryPercentage: verseWords.length > 0
-          ? Math.round((masteredInVerse / verseWords.length) * 100)
-          : 0,
-        status: masteredInVerse > 0 ? 'in_progress' : 'locked',
-        practiceCount: 1,
-        lastPracticed: new Date()
+        totalWords: stats.totalWords,
+        masteredWords: stats.masteredWords,
+        masteryPercentage: stats.masteryPercentage,
+        status,
+        practiceCount: practiced ? 1 : 0,
+        lastPracticed: practiced ? now : null,
+        completedAt: stats.completed ? now : null
       });
+      if (stats.completed) newlyCompletedVerses.push(verse.verseNumber);
+    } else {
+      const wasCompleted = vp.status === 'completed' || !!vp.completedAt;
+      vp.totalWords = stats.totalWords;
+      vp.masteredWords = stats.masteredWords;
+      vp.masteryPercentage = stats.masteryPercentage;
+      vp.status = status;
+      if (stats.completed && !vp.completedAt) vp.completedAt = now;
+      if (stats.completed && !wasCompleted) newlyCompletedVerses.push(verse.verseNumber);
+      if (practiced) {
+        vp.practiceCount = (vp.practiceCount || 0) + 1;
+        vp.lastPracticed = now;
+      }
     }
   }
 
-  // Update overall stats
-  progress.totalWordsLearned = await MasteredWord.countDocuments({
-    userId,
-    masteryLevel: { $gte: 3 }
-  });
-  progress.totalVersesCompleted = progress.verseProgress.filter(
-    vp => vp.masteryPercentage >= 100
-  ).length;
-  progress.totalChaptersCompleted = progress.chapterProgress.filter(
-    cp => cp.status === 'completed'
-  ).length;
-  progress.currentChapter = chapterNumber;
+  // ── Chapter progress ──
+  const chapterStatsRaw = computeStats(chapterWords, wordMap);
+  let cpIdx = progress.chapterProgress.findIndex(cp => cp.chapterNumber === chapterNumber);
+  if (cpIdx === -1) {
+    progress.chapterProgress.push({ chapterNumber, status: 'in_progress' });
+    cpIdx = progress.chapterProgress.length - 1;
+  }
+  const cp = progress.chapterProgress[cpIdx];
+  const chapterWasCompleted = cp.status === 'completed' || !!cp.completedAt;
 
-  await progress.save();
+  cp.totalWords = chapterStatsRaw.totalWords;
+  cp.masteredWords = chapterStatsRaw.masteredWords;
+  cp.masteryPercentage = chapterStatsRaw.masteryPercentage;
+  cp.versesCompleted = versesCompleted;
+  if (!cp.startedAt) cp.startedAt = now;
+
+  let chapterJustCompleted = false;
+  if (chapterStatsRaw.completed) {
+    cp.status = 'completed';
+    if (!cp.completedAt) cp.completedAt = now;
+    chapterJustCompleted = !chapterWasCompleted;
+  } else {
+    cp.status = 'in_progress';
+  }
+
+  // Unlock next surah at 70%
+  if (cp.masteryPercentage >= 70) {
+    const nextCp = progress.chapterProgress[cpIdx + 1];
+    if (nextCp && nextCp.status === 'locked') nextCp.status = 'in_progress';
+  }
+
+  // ── Overall stats ──
+  progress.totalVersesCompleted = progress.verseProgress.filter(vp => vp.status === 'completed').length;
+  progress.totalChaptersCompleted = progress.chapterProgress.filter(c => c.status === 'completed').length;
+  progress.currentChapter = chapterNumber;
+  const lastVerseKey = [...practicedVerseKeys].pop();
+  if (lastVerseKey) progress.currentVerse = lastVerseKey;
+
+  return {
+    progress,
+    verseStats,
+    newlyCompletedVerses,
+    chapterJustCompleted,
+    chapterStats: {
+      chapterNumber,
+      totalWords: chapterStatsRaw.totalWords,
+      masteredWords: chapterStatsRaw.masteredWords,
+      masteryPercentage: chapterStatsRaw.masteryPercentage,
+      completed: chapterStatsRaw.completed,
+      versesCompleted: versesCompleted.length,
+      totalVerses: verses.length
+    }
+  };
 }
 
 export default router;

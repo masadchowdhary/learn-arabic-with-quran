@@ -13,27 +13,38 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
 
-    if (token && savedUser) {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    let hasCachedUser = false;
+    if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
+        hasCachedUser = true;
       } catch {
         localStorage.removeItem('user');
       }
-      // Verify token with server
-      authAPI.getMe()
-        .then(res => {
-          setUser(res.data.user);
-          localStorage.setItem('user', JSON.stringify(res.data.user));
-        })
-        .catch(() => {
+    }
+
+    // Render immediately with the cached user; verify the token in the background
+    if (hasCachedUser) setLoading(false);
+
+    authAPI.getMe()
+      .then(res => {
+        setUser(res.data.user);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+      })
+      .catch((err) => {
+        // Only log out when the token is actually invalid (not on network errors)
+        if (err.response?.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const register = useCallback(async (userData) => {
@@ -90,9 +101,11 @@ export function AuthProvider({ children }) {
       return res.data.user;
     } catch (err) {
       // Token invalid or expired
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setUser(null);
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+      }
       return null;
     }
   }, []);

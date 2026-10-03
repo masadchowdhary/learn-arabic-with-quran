@@ -1,7 +1,35 @@
 import express from 'express';
 import Verse from '../models/Verse.js';
+import { getChapterVerses, STATIC_CACHE_HEADER } from '../utils/quranCache.js';
 
 const router = express.Router();
+
+/**
+ * GET /api/verses/by-key/:verseKey
+ * Get a verse by its key (e.g., "108:1")
+ * NOTE: Must be declared before "/:chapterNum/:verseNum", otherwise that
+ * route would capture "/by-key/108:1".
+ */
+router.get('/by-key/:verseKey', async (req, res, next) => {
+  try {
+    const verse = await Verse.findOne({ verseKey: req.params.verseKey }).lean();
+
+    if (!verse) {
+      return res.status(404).json({
+        success: false,
+        message: 'আয়াত পাওয়া যায়নি'
+      });
+    }
+
+    res.set('Cache-Control', STATIC_CACHE_HEADER);
+    res.json({
+      success: true,
+      verse
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * GET /api/verses/:chapterNum
@@ -18,9 +46,7 @@ router.get('/:chapterNum', async (req, res, next) => {
       });
     }
 
-    const verses = await Verse.find({ chapterNumber })
-      .sort({ verseNumber: 1 })
-      .lean();
+    const verses = await getChapterVerses(chapterNumber);
 
     if (verses.length === 0) {
       return res.status(404).json({
@@ -29,6 +55,7 @@ router.get('/:chapterNum', async (req, res, next) => {
       });
     }
 
+    res.set('Cache-Control', STATIC_CACHE_HEADER);
     res.json({
       success: true,
       chapterNumber,
@@ -49,7 +76,8 @@ router.get('/:chapterNum/:verseNum', async (req, res, next) => {
     const chapterNumber = parseInt(req.params.chapterNum);
     const verseNumber = parseInt(req.params.verseNum);
 
-    const verse = await Verse.findOne({ chapterNumber, verseNumber }).lean();
+    const verses = await getChapterVerses(chapterNumber);
+    const verse = verses.find(v => v.verseNumber === verseNumber);
 
     if (!verse) {
       return res.status(404).json({
@@ -58,30 +86,7 @@ router.get('/:chapterNum/:verseNum', async (req, res, next) => {
       });
     }
 
-    res.json({
-      success: true,
-      verse
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * GET /api/verses/by-key/:verseKey
- * Get a verse by its key (e.g., "108:1")
- */
-router.get('/by-key/:verseKey', async (req, res, next) => {
-  try {
-    const verse = await Verse.findOne({ verseKey: req.params.verseKey }).lean();
-
-    if (!verse) {
-      return res.status(404).json({
-        success: false,
-        message: 'আয়াত পাওয়া যায়নি'
-      });
-    }
-
+    res.set('Cache-Control', STATIC_CACHE_HEADER);
     res.json({
       success: true,
       verse

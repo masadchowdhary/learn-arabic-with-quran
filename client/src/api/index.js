@@ -17,11 +17,35 @@ const api = axios.create({
 // Request interceptor — attach JWT token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  // Public static data is fetched without the token so CDNs can cache it
+  if (token && !config.skipAuth) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// ─── Static data cache ────────────────────────────────
+// Quran text never changes, so keep responses in memory for the session.
+// The promise itself is cached so parallel callers share one request.
+const staticCache = new Map();
+const STATIC_TTL = 60 * 60 * 1000; // 1 hour
+
+function cachedGet(url) {
+  const hit = staticCache.get(url);
+  if (hit && Date.now() - hit.time < STATIC_TTL) return hit.promise;
+
+  const promise = api.get(url, { skipAuth: true }).catch((err) => {
+    staticCache.delete(url);
+    throw err;
+  });
+  staticCache.set(url, { promise, time: Date.now() });
+  return promise;
+}
+
+/** Warm the cache in the background (e.g. verses for the next screen). */
+export function prefetch(url) {
+  cachedGet(url).catch(() => {});
+}
 
 // Response interceptor — handle auth errors
 api.interceptors.response.use(
@@ -55,16 +79,16 @@ export const authAPI = {
 
 // ─── Chapter API ──────────────────────────────────────
 export const chapterAPI = {
-  getAll: () => api.get('/chapters'),
-  getOne: (number) => api.get(`/chapters/${number}`),
+  getAll: () => cachedGet('/chapters'),
+  getOne: (number) => cachedGet(`/chapters/${number}`),
   getProgress: (number) => api.get(`/chapters/${number}/progress`)
 };
 
 // ─── Verse API ────────────────────────────────────────
 export const verseAPI = {
-  getByChapter: (chapterNum) => api.get(`/verses/${chapterNum}`),
-  getOne: (chapterNum, verseNum) => api.get(`/verses/${chapterNum}/${verseNum}`),
-  getByKey: (verseKey) => api.get(`/verses/by-key/${verseKey}`)
+  getByChapter: (chapterNum) => cachedGet(`/verses/${chapterNum}`),
+  getOne: (chapterNum, verseNum) => cachedGet(`/verses/${chapterNum}/${verseNum}`),
+  getByKey: (verseKey) => cachedGet(`/verses/by-key/${verseKey}`)
 };
 
 // ─── Practice API ─────────────────────────────────────

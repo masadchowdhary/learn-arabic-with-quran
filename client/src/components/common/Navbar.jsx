@@ -17,7 +17,7 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-content">
         <Link to={isAuthenticated ? '/practice' : '/'} className="navbar-brand">
-          <span className="icon">🕌</span>
+          <img src="/icons/favicon.jpg" alt="লিসানুল কুরআন" className="icon" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
           <span>কুরআনে আরবী</span>
         </Link>
 
